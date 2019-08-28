@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <None Include="PropertySheet.props" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="CaptureSnapshot.cpp" />
+    <ClCompile Include="FullScreenMaxRateWindow.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="capture.interop.h" />
+    <ClInclude Include="completionSource.h" />
+    <ClInclude Include="d3dHelpers.h" />
+    <ClInclude Include="direct3d11.interop.h" />
+    <ClInclude Include="stream.interop.h" />
+    <ClInclude Include="CaptureSnapshot.h" />
+    <ClInclude Include="safe_flag.h" />
+    <ClInclude Include="DesktopWindow.h" />
+    <ClInclude Include="FullScreenMaxRateWindow.h" />
+  </ItemGroup>
+</Project>
