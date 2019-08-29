@@ -134,19 +134,32 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
 
     try
     {
-        auto window = FullScreenMaxRateWindow();
-
-        MSG msg;
-        while (GetMessageW(&msg, nullptr, 0, 0))
+        // Run the window
         {
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+            auto window = FullScreenMaxRateWindow();
 
-            window.Flip();
+            auto completed = false;
+            while (!completed)
+            {
+                MSG msg;
+                while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+                {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+
+                    window.Flip();
+                }
+
+                if (window.Closed())
+                {
+                    completed = true;
+                }
+            }
+
+            // The window may already be closed, so don't check the return value
+            CloseWindow(window.m_window);
         }
-
-        CloseWindow(window.m_window);
-
+        
     }
     catch (hresult_error const& error)
     {
@@ -187,7 +200,7 @@ IAsyncAction MainAsync(std::vector<std::wstring> const& args)
     check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
 
     // Tests
-    auto transparencyPassed = co_await TransparencyTest(compositorController, device);
+    //auto transparencyPassed = co_await TransparencyTest(compositorController, device);
     auto renderRatePassed = co_await RenderRateTest(compositorController, device);
 }
 

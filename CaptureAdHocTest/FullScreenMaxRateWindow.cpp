@@ -32,15 +32,30 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
 
     m_d3dDevice = CreateD3DDevice();
     m_d3dDevice->GetImmediateContext(m_d3dContext.put());
-    m_swapChain = CreateDXGISwapChainForWindow(m_d3dDevice, 800, 600, DXGI_FORMAT_B8G8R8A8_UNORM, 3, m_window);
+    m_swapChain = CreateDXGISwapChainForWindow(m_d3dDevice, 800, 600, DXGI_FORMAT_B8G8R8A8_UNORM, 2, m_window);
 
+    // Get the adapter from our d3d device
+    auto dxgiDevice = m_d3dDevice.as<IDXGIDevice>();
+    winrt::com_ptr<IDXGIAdapter> adapter;
+    winrt::check_hresult(dxgiDevice->GetAdapter(adapter.put()));
+
+    // TODO: Enforce that we are running with only one output. (across all adapters)
+    winrt::com_ptr<IDXGIOutput> output;
+    winrt::check_hresult(adapter->EnumOutputs(0, output.put()));
+    DXGI_OUTPUT_DESC outputDesc = {};
+    winrt::check_hresult(output->GetDesc(&outputDesc));
+
+    // TODO: Properly handle DPI
+    auto width = outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left;
+    auto height = outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top;
+
+    winrt::check_hresult(m_swapChain->SetFullscreenState(true, output.get()));
+    winrt::check_hresult(m_swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 0));
+
+    // Get the back buffer so we can clear it
     winrt::com_ptr<ID3D11Texture2D> backBuffer;
     winrt::check_hresult(m_swapChain->GetBuffer(0, winrt::guid_of<ID3D11Texture2D>(), backBuffer.put_void()));
     winrt::check_hresult(m_d3dDevice->CreateRenderTargetView(backBuffer.get(), nullptr, m_renderTargetView.put()));
-
-    winrt::check_hresult(m_swapChain->SetFullscreenState(true, nullptr));
-    winrt::check_hresult(m_swapChain->ResizeBuffers(2, 800, 600,
-        DXGI_FORMAT_B8G8R8A8_UNORM, 0));
 }
 
 void FullScreenMaxRateWindow::Flip()
@@ -56,7 +71,19 @@ LRESULT FullScreenMaxRateWindow::MessageHandler(UINT const message, WPARAM const
 {
     if (WM_DESTROY == message)
     {
+        m_windowClosed = true;
         return 0;
+    }
+
+    switch (message)
+    {
+    case WM_KEYUP:
+        if (wparam == VK_ESCAPE)
+        {
+            m_windowClosed = true;
+            return 0;
+        }
+        break;
     }
 
     return base_type::MessageHandler(message, wparam, lparam);

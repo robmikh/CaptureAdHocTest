@@ -125,7 +125,7 @@ inline auto CreateDXGISwapChainForWindow(winrt::com_ptr<ID3D11Device> const& dev
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
     desc.BufferCount = bufferCount;
-    desc.Scaling = DXGI_SCALING_STRETCH;
+    desc.Scaling = DXGI_SCALING_NONE;
     desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 
