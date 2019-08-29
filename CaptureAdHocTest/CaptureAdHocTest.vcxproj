@@ -111,6 +111,7 @@
   <ItemGroup>
     <ClInclude Include="capture.interop.h" />
     <ClInclude Include="CaptureSnapshot.h" />
+    <ClInclude Include="cliParser.h" />
     <ClInclude Include="completionSource.h" />
     <ClInclude Include="d3dHelpers.h" />
     <ClInclude Include="DesktopWindow.h" />

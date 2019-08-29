@@ -22,5 +22,6 @@
     <ClInclude Include="DesktopWindow.h" />
     <ClInclude Include="FullScreenMaxRateWindow.h" />
     <ClInclude Include="FrameTimer.h" />
+    <ClInclude Include="cliParser.h" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "CaptureSnapshot.h"
 #include "FullScreenMaxRateWindow.h"
+#include "cliParser.h"
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -195,7 +196,7 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
-IAsyncAction MainAsync(std::vector<std::wstring> const& args)
+IAsyncAction MainAsync(std::vector<std::wstring> args)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
     // we can't use our current thread. Create a new one that is controlled by the dispatcher.
@@ -225,11 +226,48 @@ IAsyncAction MainAsync(std::vector<std::wstring> const& args)
     check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
 
     // Tests
-    //auto transparencyPassed = co_await TransparencyTest(compositorController, device);
-    auto renderRatePassed = co_await RenderRateTest(compositorController, device);
+    if (args.size() <= 0)
+    {
+        PrintUsage();
+        co_return;
+    }
+    auto command = args[0];
+    args.erase(args.begin());
+
+    if (command == L"test")
+    {
+        auto testIdString = GetFlagValue(args, L"--id");
+        WINRT_VERIFY(!testIdString.empty());
+        auto testId = std::stoi(testIdString);
+        if (testId < 0 || testId > 1)
+        {
+            std::wcout << L"Invalid test id!" << std::endl;
+            co_return;
+        }
+
+        switch (testId)
+        {
+        case 0:
+            {
+                auto transparencyPassed = co_await TransparencyTest(compositorController, device);
+            }
+            break;
+        case 1:
+            {
+                auto renderRatePassed = co_await RenderRateTest(compositorController, device);
+            }
+            break;
+        }
+    }
+    else
+    {
+        std::wcout << L"Unknown command! \"" << command << L"\"" << std::endl;
+        PrintUsage();
+        co_return;
+    }
 }
 
-int main(int argc, wchar_t* argv[])
+int wmain(int argc, wchar_t* argv[])
 {
     init_apartment();
 

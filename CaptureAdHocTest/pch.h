@@ -22,6 +22,8 @@
 #include <filesystem>
 #include <sstream>
 #include <chrono>
+#include <string>
+#include <iostream>
 
 // D3D
 #include <d3d11_4.h>
