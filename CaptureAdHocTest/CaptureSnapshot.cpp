@@ -34,32 +34,32 @@ CaptureSnapshot::TakeAsync(IDirect3DDevice const& device, GraphicsCaptureItem co
 
     auto completion = completion_source<IDirect3DSurface>();
     framePool.FrameArrived([session, d3dDevice, d3dContext, &completion, asStagingTexture](auto& framePool, auto&)
-        {
-            auto frame = framePool.TryGetNextFrame();
-            auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+    {
+        auto frame = framePool.TryGetNextFrame();
+        auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 
-            // Make a copy of the texture
-            D3D11_TEXTURE2D_DESC desc = {};
-            frameTexture->GetDesc(&desc);
-            // Clear flags that we don't need
-            desc.Usage = asStagingTexture ? D3D11_USAGE_STAGING : D3D11_USAGE_DEFAULT;
-            desc.BindFlags = asStagingTexture ? 0 : D3D11_BIND_SHADER_RESOURCE;
-            desc.CPUAccessFlags = asStagingTexture ? D3D11_CPU_ACCESS_READ : 0;
-            desc.MiscFlags = 0;
-            com_ptr<ID3D11Texture2D> textureCopy;
-            check_hresult(d3dDevice->CreateTexture2D(&desc, nullptr, textureCopy.put()));
-            d3dContext->CopyResource(textureCopy.get(), frameTexture.get());
+        // Make a copy of the texture
+        D3D11_TEXTURE2D_DESC desc = {};
+        frameTexture->GetDesc(&desc);
+        // Clear flags that we don't need
+        desc.Usage = asStagingTexture ? D3D11_USAGE_STAGING : D3D11_USAGE_DEFAULT;
+        desc.BindFlags = asStagingTexture ? 0 : D3D11_BIND_SHADER_RESOURCE;
+        desc.CPUAccessFlags = asStagingTexture ? D3D11_CPU_ACCESS_READ : 0;
+        desc.MiscFlags = 0;
+        com_ptr<ID3D11Texture2D> textureCopy;
+        check_hresult(d3dDevice->CreateTexture2D(&desc, nullptr, textureCopy.put()));
+        d3dContext->CopyResource(textureCopy.get(), frameTexture.get());
 
-            auto dxgiSurface = textureCopy.as<IDXGISurface>();
-            auto result = CreateDirect3DSurface(dxgiSurface.get());
+        auto dxgiSurface = textureCopy.as<IDXGISurface>();
+        auto result = CreateDirect3DSurface(dxgiSurface.get());
 
-            // End the capture
-            session.Close();
-            framePool.Close();
+        // End the capture
+        session.Close();
+        framePool.Close();
 
-            // Complete the operation
-            completion.set(result);
-        });
+        // Complete the operation
+        completion.set(result);
+    });
 
     session.StartCapture();
 

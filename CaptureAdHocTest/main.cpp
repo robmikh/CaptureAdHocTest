@@ -5,6 +5,7 @@
 using namespace winrt;
 using namespace Windows::Foundation;
 using namespace Windows::Graphics::Capture;
+using namespace Windows::Graphics::DirectX;
 using namespace Windows::Graphics::DirectX::Direct3D11;
 using namespace Windows::Storage;
 using namespace Windows::System;
@@ -134,32 +135,61 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
 
     try
     {
-        // Run the window
+        auto window = FullScreenMaxRateWindow();
+
+        // Start capturing the window. Make note of the timestamps.
+        auto item = CreateCaptureItemForWindow(window.m_window);
+        auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+            device,
+            DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            2,
+            item.Size());
+        auto session = framePool.CreateCaptureSession(item);
+        auto totalFrames = 0;
+        auto totalTimeBetweenFrames = TimeSpan::zero();
+        auto lastTimestamp = TimeSpan::zero();
+        framePool.FrameArrived([&totalFrames, &lastTimestamp, &totalTimeBetweenFrames](auto& framePool, auto&)
         {
-            auto window = FullScreenMaxRateWindow();
+            auto frame = framePool.TryGetNextFrame();
+            auto timestamp = frame.SystemRelativeTime();
 
-            auto completed = false;
-            while (!completed)
+            if (totalFrames > 0)
             {
-                MSG msg;
-                while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
-                {
-                    TranslateMessage(&msg);
-                    DispatchMessageW(&msg);
-
-                    window.Flip();
-                }
-
-                if (window.Closed())
-                {
-                    completed = true;
-                }
+                auto timeBetweenFrames = timestamp - lastTimestamp;
+                totalTimeBetweenFrames += timeBetweenFrames;
             }
 
-            // The window may already be closed, so don't check the return value
-            CloseWindow(window.m_window);
+            totalFrames++;
+            lastTimestamp = timestamp;
+        });
+        session.StartCapture();
+
+        // Run the window
+        auto completed = false;
+        while (!completed)
+        {
+            MSG msg;
+            while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+
+                window.Flip();
+            }
+
+            if (window.Closed())
+            {
+                completed = true;
+            }
         }
-        
+
+        // The window may already be closed, so don't check the return value
+        CloseWindow(window.m_window);
+        session.Close();
+        framePool.Close();
+
+        wprintf(L"Average capture frame time: %dms\n", std::chrono::duration_cast<std::chrono::milliseconds>(totalTimeBetweenFrames / (double)totalFrames).count());
+        wprintf(L"Number of frames: %d\n", totalFrames);
     }
     catch (hresult_error const& error)
     {
