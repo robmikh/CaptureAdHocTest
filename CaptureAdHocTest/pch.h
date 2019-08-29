@@ -36,3 +36,4 @@
 #include "stream.interop.h"
 #include "completionSource.h"
 #include "safe_flag.h"
+#include "FrameTimer.h"

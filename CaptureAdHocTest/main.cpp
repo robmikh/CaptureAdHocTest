@@ -145,27 +145,19 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
             2,
             item.Size());
         auto session = framePool.CreateCaptureSession(item);
-        auto totalFrames = 0;
-        auto totalTimeBetweenFrames = TimeSpan::zero();
-        auto lastTimestamp = TimeSpan::zero();
-        framePool.FrameArrived([&totalFrames, &lastTimestamp, &totalTimeBetweenFrames](auto& framePool, auto&)
+        FrameTimer<TimeSpan> captureTimer;
+        framePool.FrameArrived([&captureTimer](auto& framePool, auto&)
         {
             auto frame = framePool.TryGetNextFrame();
             auto timestamp = frame.SystemRelativeTime();
 
-            if (totalFrames > 0)
-            {
-                auto timeBetweenFrames = timestamp - lastTimestamp;
-                totalTimeBetweenFrames += timeBetweenFrames;
-            }
-
-            totalFrames++;
-            lastTimestamp = timestamp;
+            captureTimer.RecordTimestamp(timestamp);
         });
         session.StartCapture();
 
         // Run the window
         auto completed = false;
+        FrameTimer<std::chrono::time_point<std::chrono::steady_clock>> renderTimer;
         while (!completed)
         {
             MSG msg;
@@ -173,14 +165,15 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
             {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
-
-                window.Flip();
             }
 
             if (window.Closed())
             {
                 completed = true;
             }
+
+            window.Flip();
+            renderTimer.RecordTimestamp(std::chrono::high_resolution_clock::now());
         }
 
         // The window may already be closed, so don't check the return value
@@ -188,8 +181,10 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
         session.Close();
         framePool.Close();
 
-        wprintf(L"Average capture frame time: %dms\n", std::chrono::duration_cast<std::chrono::milliseconds>(totalTimeBetweenFrames / (double)totalFrames).count());
-        wprintf(L"Number of frames: %d\n", totalFrames);
+        wprintf(L"Average rendered frame time: %fms\n", renderTimer.ComputeAverageFrameTime().count());
+        wprintf(L"Number of rendered frames: %d\n", renderTimer.m_totalFrames);
+        wprintf(L"Average capture frame time: %fms\n", captureTimer.ComputeAverageFrameTime().count());
+        wprintf(L"Number of capture frames: %d\n", captureTimer.m_totalFrames);
     }
     catch (hresult_error const& error)
     {

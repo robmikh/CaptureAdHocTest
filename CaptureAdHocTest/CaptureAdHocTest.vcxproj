@@ -115,6 +115,7 @@
     <ClInclude Include="d3dHelpers.h" />
     <ClInclude Include="DesktopWindow.h" />
     <ClInclude Include="direct3d11.interop.h" />
+    <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FullScreenMaxRateWindow.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="safe_flag.h" />
