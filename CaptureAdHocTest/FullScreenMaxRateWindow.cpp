@@ -60,8 +60,8 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
 
 FullScreenMaxRateWindow::~FullScreenMaxRateWindow()
 {
-	// DXGI gets unhappy when we release a fullscreen swapchain :-/
-	winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
+    // DXGI gets unhappy when we release a fullscreen swapchain :-/
+    winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
 }
 
 void FullScreenMaxRateWindow::Flip()
