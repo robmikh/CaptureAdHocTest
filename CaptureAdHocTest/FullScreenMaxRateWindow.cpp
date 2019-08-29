@@ -58,6 +58,12 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
     winrt::check_hresult(m_d3dDevice->CreateRenderTargetView(backBuffer.get(), nullptr, m_renderTargetView.put()));
 }
 
+FullScreenMaxRateWindow::~FullScreenMaxRateWindow()
+{
+	// DXGI gets unhappy when we release a fullscreen swapchain :-/
+	winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
+}
+
 void FullScreenMaxRateWindow::Flip()
 {
     float color[4] = { 1.0f, 0.0f, 0.0f, 1.0f }; // RGBA

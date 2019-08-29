@@ -6,6 +6,7 @@ struct FullScreenMaxRateWindow : DesktopWindow<FullScreenMaxRateWindow>
     static void RegisterWindowClass();
 
     FullScreenMaxRateWindow();
+	~FullScreenMaxRateWindow();
 
     LRESULT MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam);
 
