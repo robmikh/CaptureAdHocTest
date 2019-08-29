@@ -52,4 +52,5 @@ void PrintUsage()
     std::wcout << L"\tTest ids:" << std::endl;
     std::wcout << L"\t\tTransparency = 0" << std::endl;
     std::wcout << L"\t\tMaxCaptureRate = 1" << std::endl;
+    std::wcout << L"\t\tHalf-Life 2 Capture Rate = 2" << std::endl;
 }

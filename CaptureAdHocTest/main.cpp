@@ -196,6 +196,55 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
+IAsyncOperation<bool> HalfLife2RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    try
+    {
+        // Find Half-Life 2
+        auto window = FindWindowW(nullptr, L"HALF-LIFE 2");
+        winrt::check_bool(window);
+
+        // Start capturing the window. Make note of the timestamps.
+        auto item = CreateCaptureItemForWindow(window);
+        auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+            device,
+            DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            2,
+            item.Size());
+        auto session = framePool.CreateCaptureSession(item);
+        FrameTimer<TimeSpan> captureTimer;
+        framePool.FrameArrived([&captureTimer](auto& framePool, auto&)
+            {
+                auto frame = framePool.TryGetNextFrame();
+                auto timestamp = frame.SystemRelativeTime();
+
+                captureTimer.RecordTimestamp(timestamp);
+            });
+        session.StartCapture();
+
+        // Run for awhile
+        co_await std::chrono::seconds(10);
+
+        session.Close();
+        framePool.Close();
+
+        wprintf(L"Average capture frame time: %fms\n", captureTimer.ComputeAverageFrameTime().count());
+        wprintf(L"Number of capture frames: %d\n", captureTimer.m_totalFrames);
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
 IAsyncAction MainAsync(std::vector<std::wstring> args)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
@@ -239,7 +288,7 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
         auto testIdString = GetFlagValue(args, L"--id");
         WINRT_VERIFY(!testIdString.empty());
         auto testId = std::stoi(testIdString);
-        if (testId < 0 || testId > 1)
+        if (testId < 0 || testId > 2)
         {
             std::wcout << L"Invalid test id!" << std::endl;
             co_return;
@@ -255,6 +304,11 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
         case 1:
             {
                 auto renderRatePassed = co_await RenderRateTest(compositorController, device);
+            }
+            break;
+        case 2:
+            {
+                auto renderRatePassed = co_await HalfLife2RenderRateTest(compositorController, device);
             }
             break;
         }
