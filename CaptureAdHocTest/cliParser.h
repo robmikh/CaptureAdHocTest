@@ -47,10 +47,10 @@ void PrintUsage()
     std::wcout << L"CaptureAdHocTest.exe usage:" << std::endl;
     std::wcout << L"\t<command> <flags...>" << std::endl;
     std::wcout << std::endl;
-    std::wcout << L"\ttest\t--id <test id, required>" << std::endl;
+    std::wcout << L"\ttest\t--id <test id, required> --window <only on Window Capture Rate test>" << std::endl;
     std::wcout << std::endl;
     std::wcout << L"\tTest ids:" << std::endl;
     std::wcout << L"\t\tTransparency = 0" << std::endl;
     std::wcout << L"\t\tMaxCaptureRate = 1" << std::endl;
-    std::wcout << L"\t\tHalf-Life 2 Capture Rate = 2" << std::endl;
+    std::wcout << L"\t\tWindow Capture Rate = 2" << std::endl;
 }

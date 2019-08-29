@@ -196,7 +196,7 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
-IAsyncOperation<bool> HalfLife2RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device)
+IAsyncOperation<bool> WindowRenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, std::wstring const& windowName)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -205,8 +205,8 @@ IAsyncOperation<bool> HalfLife2RenderRateTest(CompositorController const& compos
 
     try
     {
-        // Find Half-Life 2
-        auto window = FindWindowW(nullptr, L"HALF-LIFE 2");
+        // Find the window
+        auto window = FindWindowW(nullptr, windowName.c_str());
         winrt::check_bool(window);
 
         // Start capturing the window. Make note of the timestamps.
@@ -308,7 +308,9 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
             break;
         case 2:
             {
-                auto renderRatePassed = co_await HalfLife2RenderRateTest(compositorController, device);
+                auto windowName = GetFlagValue(args, L"--window");
+                WINRT_VERIFY(!windowName.empty());
+                auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName);
             }
             break;
         }
