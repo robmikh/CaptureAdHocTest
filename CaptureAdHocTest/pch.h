@@ -26,6 +26,7 @@
 #include <chrono>
 #include <string>
 #include <iostream>
+#include <future>
 
 // WIL
 #include <wil/resource.h>
@@ -42,5 +43,4 @@
 #include "capture.interop.h"
 #include "stream.interop.h"
 #include "completionSource.h"
-#include "safe_flag.h"
 #include "FrameTimer.h"

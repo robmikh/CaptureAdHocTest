@@ -30,6 +30,34 @@ inline void check_color(T value, winrt::Windows::UI::Color const& expected)
     }
 }
 
+template <typename T, typename ... Args>
+IAsyncOperation<T> CreateOnThreadAsync(DispatcherQueue const& threadQueue, Args ... args)
+{
+    wil::shared_event initialized(wil::EventOptions::None);
+    T thing{ nullptr };
+    winrt::check_bool(threadQueue.TryEnqueue([&thing, initialized]()
+    {
+        thing = T(args...);
+        initialized.SetEvent();
+    }));
+    co_await winrt::resume_on_signal(initialized.get());
+    co_return thing;
+}
+
+template <typename T, typename ... Args>
+std::future<std::shared_ptr<T>> CreateSharedOnThreadAsync(DispatcherQueue const& threadQueue, Args ... args)
+{
+    wil::shared_event initialized(wil::EventOptions::None);
+    std::shared_ptr<T> thing{ nullptr };
+    winrt::check_bool(threadQueue.TryEnqueue([&thing, initialized]()
+    {
+        thing = std::make_shared<T>(args...);
+        initialized.SetEvent();
+    }));
+    co_await winrt::resume_on_signal(initialized.get());
+    co_return thing;
+}
+
 class MappedTexture
 {
 public:
@@ -137,14 +165,7 @@ IAsyncOperation<bool> RenderRateTest(DispatcherQueue const& compositorThreadQueu
     try
     {
         // Create the window on the compositor thread to borrow the message pump
-        std::shared_ptr<FullScreenMaxRateWindow> window;
-        auto initialized = std::make_shared<safe_flag>();
-        winrt::check_bool(compositorThreadQueue.TryEnqueue([&window, &initialized]()
-        {
-            window = std::make_shared<FullScreenMaxRateWindow>();
-            initialized->set();
-        }));
-        initialized->wait();
+        auto window = co_await CreateSharedOnThreadAsync<FullScreenMaxRateWindow>(compositorThreadQueue);
 
         // Start capturing the window. Make note of the timestamps.
         auto item = CreateCaptureItemForWindow(window->m_window);
@@ -246,19 +267,6 @@ IAsyncOperation<bool> WindowRenderRateTest(CompositorController const& composito
     co_return true;
 }
 
-IAsyncOperation<CompositorController> CreateCompositorControllerOnThreadAsync(DispatcherQueue const& compositorThread)
-{
-    wil::shared_event initialized(wil::EventOptions::None);
-    CompositorController compositorController{ nullptr };
-    winrt::check_bool(compositorThread.TryEnqueue([&compositorController, initialized]()
-    {
-        compositorController = CompositorController();
-        initialized.SetEvent();
-    }));
-    co_await resume_on_signal(initialized.get());
-    co_return compositorController;
-}
-
 IAsyncAction MainAsync(std::vector<std::wstring> args)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
@@ -266,7 +274,7 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
     auto dispatcherController = DispatcherQueueController::CreateOnDedicatedThread();
     auto compositorThread = dispatcherController.DispatcherQueue();
     // The tests aren't going to run on the compositor thread, so we need to control calling Commit. 
-    auto compositorController = co_await CreateCompositorControllerOnThreadAsync(compositorThread);
+    auto compositorController = co_await CreateOnThreadAsync<CompositorController>(compositorThread);
     auto compositor = compositorController.Compositor();
 
     // Initialize D3D

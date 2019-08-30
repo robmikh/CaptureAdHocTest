@@ -119,7 +119,6 @@
     <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FullScreenMaxRateWindow.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="safe_flag.h" />
     <ClInclude Include="stream.interop.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
