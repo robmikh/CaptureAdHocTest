@@ -246,6 +246,19 @@ IAsyncOperation<bool> WindowRenderRateTest(CompositorController const& composito
     co_return true;
 }
 
+IAsyncOperation<CompositorController> CreateCompositorControllerOnThreadAsync(DispatcherQueue const& compositorThread)
+{
+    wil::shared_event initialized(wil::EventOptions::None);
+    CompositorController compositorController{ nullptr };
+    winrt::check_bool(compositorThread.TryEnqueue([&compositorController, initialized]()
+    {
+        compositorController = CompositorController();
+        initialized.SetEvent();
+    }));
+    co_await resume_on_signal(initialized.get());
+    co_return compositorController;
+}
+
 IAsyncAction MainAsync(std::vector<std::wstring> args)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
@@ -253,14 +266,7 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
     auto dispatcherController = DispatcherQueueController::CreateOnDedicatedThread();
     auto compositorThread = dispatcherController.DispatcherQueue();
     // The tests aren't going to run on the compositor thread, so we need to control calling Commit. 
-    CompositorController compositorController{ nullptr };
-    auto initialized = std::make_shared<safe_flag>();
-    check_bool(compositorThread.TryEnqueue([&compositorController, &initialized]()
-    {
-        compositorController = CompositorController();
-        initialized->set();
-    }));
-    initialized->wait();
+    auto compositorController = co_await CreateCompositorControllerOnThreadAsync(compositorThread);
     auto compositor = compositorController.Compositor();
 
     // Initialize D3D

@@ -3,6 +3,8 @@
 #include <Unknwn.h>
 #include <inspectable.h>
 
+#include <wil/cppwinrt.h>
+
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.Metadata.h>
@@ -24,6 +26,9 @@
 #include <chrono>
 #include <string>
 #include <iostream>
+
+// WIL
+#include <wil/resource.h>
 
 // D3D
 #include <d3d11_4.h>
