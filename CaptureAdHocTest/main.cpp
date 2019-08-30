@@ -127,7 +127,7 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
     co_return true;
 }
 
-IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device)
+IAsyncOperation<bool> RenderRateTest(DispatcherQueue const& compositorThreadQueue, CompositorController const& compositorController, IDirect3DDevice const& device)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -136,10 +136,18 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
 
     try
     {
-        auto window = FullScreenMaxRateWindow();
+        // Create the window on the compositor thread to borrow the message pump
+        std::shared_ptr<FullScreenMaxRateWindow> window;
+        auto initialized = std::make_shared<safe_flag>();
+        winrt::check_bool(compositorThreadQueue.TryEnqueue([&window, &initialized]()
+        {
+            window = std::make_shared<FullScreenMaxRateWindow>();
+            initialized->set();
+        }));
+        initialized->wait();
 
         // Start capturing the window. Make note of the timestamps.
-        auto item = CreateCaptureItemForWindow(window.m_window);
+        auto item = CreateCaptureItemForWindow(window->m_window);
         auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -161,24 +169,17 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
         FrameTimer<std::chrono::time_point<std::chrono::steady_clock>> renderTimer;
         while (!completed)
         {
-            MSG msg;
-            while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
-            {
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
-
-            if (window.Closed())
+            if (window->Closed())
             {
                 completed = true;
             }
 
-            window.Flip();
+            window->Flip();
             renderTimer.RecordTimestamp(std::chrono::high_resolution_clock::now());
         }
 
         // The window may already be closed, so don't check the return value
-        CloseWindow(window.m_window);
+        CloseWindow(window->m_window);
         session.Close();
         framePool.Close();
 
@@ -219,12 +220,12 @@ IAsyncOperation<bool> WindowRenderRateTest(CompositorController const& composito
         auto session = framePool.CreateCaptureSession(item);
         FrameTimer<TimeSpan> captureTimer;
         framePool.FrameArrived([&captureTimer](auto& framePool, auto&)
-            {
-                auto frame = framePool.TryGetNextFrame();
-                auto timestamp = frame.SystemRelativeTime();
+        {
+            auto frame = framePool.TryGetNextFrame();
+            auto timestamp = frame.SystemRelativeTime();
 
-                captureTimer.RecordTimestamp(timestamp);
-            });
+            captureTimer.RecordTimestamp(timestamp);
+        });
         session.StartCapture();
 
         // Run for awhile
@@ -303,7 +304,7 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
             break;
         case 1:
             {
-                auto renderRatePassed = co_await RenderRateTest(compositorController, device);
+                auto renderRatePassed = co_await RenderRateTest(compositorThread, compositorController, device);
             }
             break;
         case 2:
