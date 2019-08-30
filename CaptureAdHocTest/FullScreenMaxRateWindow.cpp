@@ -49,7 +49,11 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
     auto width = outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left;
     auto height = outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top;
 
-    winrt::check_hresult(m_swapChain->SetFullscreenState(true, output.get()));
+    winrt::check_bool(SetWindowLongPtrW(m_window, GWL_STYLE, WS_POPUP));
+    winrt::check_bool(SetWindowPos(m_window, HWND_TOP, 0, 0, width, height, SWP_FRAMECHANGED | SWP_SHOWWINDOW));
+    ShowCursor(false);
+
+    //winrt::check_hresult(m_swapChain->SetFullscreenState(true, output.get()));
     winrt::check_hresult(m_swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 0));
 
     // Get the back buffer so we can clear it
@@ -60,6 +64,7 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
 
 FullScreenMaxRateWindow::~FullScreenMaxRateWindow()
 {
+    ShowCursor(true);
     // DXGI gets unhappy when we release a fullscreen swapchain :-/
     winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
 }
