@@ -104,7 +104,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CaptureSnapshot.cpp" />
-    <ClCompile Include="FullScreenMaxRateWindow.cpp" />
+    <ClCompile Include="FullscreenMaxRateWindow.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
@@ -117,7 +117,7 @@
     <ClInclude Include="DesktopWindow.h" />
     <ClInclude Include="direct3d11.interop.h" />
     <ClInclude Include="FrameTimer.h" />
-    <ClInclude Include="FullScreenMaxRateWindow.h" />
+    <ClInclude Include="FullscreenMaxRateWindow.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stream.interop.h" />
   </ItemGroup>

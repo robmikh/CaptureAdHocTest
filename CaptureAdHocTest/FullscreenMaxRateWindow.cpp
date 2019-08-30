@@ -1,7 +1,7 @@
 #include "pch.h"
-#include "FullScreenMaxRateWindow.h"
+#include "FullscreenMaxRateWindow.h"
 
-void FullScreenMaxRateWindow::RegisterWindowClass()
+void FullscreenMaxRateWindow::RegisterWindowClass()
 {
     auto instance = GetModuleHandleW(nullptr);
     winrt::check_bool(instance);
@@ -13,17 +13,17 @@ void FullScreenMaxRateWindow::RegisterWindowClass()
     wcex.hIcon = LoadIconW(instance, IDI_APPLICATION);
     wcex.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wcex.lpszClassName = L"FullScreenMaxRateWindow";
+    wcex.lpszClassName = L"FullscreenMaxRateWindow";
     wcex.hIconSm = LoadIconW(wcex.hInstance, IDI_APPLICATION);
     winrt::check_bool(RegisterClassExW(&wcex));
 }
 
-FullScreenMaxRateWindow::FullScreenMaxRateWindow() 
+FullscreenMaxRateWindow::FullscreenMaxRateWindow(FullscreenMode mode) 
 {
     auto instance = GetModuleHandleW(nullptr);
     winrt::check_bool(instance);
 
-    winrt::check_bool(CreateWindowW(L"FullScreenMaxRateWindow", L"FullScreenMaxRateWindow", WS_OVERLAPPEDWINDOW,
+    winrt::check_bool(CreateWindowW(L"FullscreenMaxRateWindow", L"FullscreenMaxRateWindow", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, instance, this));
     WINRT_ASSERT(m_window);
 
@@ -49,11 +49,17 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
     auto width = outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left;
     auto height = outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top;
 
-    winrt::check_bool(SetWindowLongPtrW(m_window, GWL_STYLE, WS_POPUP));
-    winrt::check_bool(SetWindowPos(m_window, HWND_TOP, 0, 0, width, height, SWP_FRAMECHANGED | SWP_SHOWWINDOW));
+    switch (mode)
+    {
+    case FullscreenMode::SetFullscreenState:
+        winrt::check_hresult(m_swapChain->SetFullscreenState(true, output.get()));
+        break;
+    case FullscreenMode::FullscreenWindow:
+        winrt::check_bool(SetWindowLongPtrW(m_window, GWL_STYLE, WS_POPUP));
+        winrt::check_bool(SetWindowPos(m_window, HWND_TOP, 0, 0, width, height, SWP_FRAMECHANGED | SWP_SHOWWINDOW));
+        break;
+    }
     ShowCursor(false);
-
-    //winrt::check_hresult(m_swapChain->SetFullscreenState(true, output.get()));
     winrt::check_hresult(m_swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 0));
 
     // Get the back buffer so we can clear it
@@ -62,14 +68,14 @@ FullScreenMaxRateWindow::FullScreenMaxRateWindow()
     winrt::check_hresult(m_d3dDevice->CreateRenderTargetView(backBuffer.get(), nullptr, m_renderTargetView.put()));
 }
 
-FullScreenMaxRateWindow::~FullScreenMaxRateWindow()
+FullscreenMaxRateWindow::~FullscreenMaxRateWindow()
 {
     ShowCursor(true);
     // DXGI gets unhappy when we release a fullscreen swapchain :-/
     winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
 }
 
-void FullScreenMaxRateWindow::Flip()
+void FullscreenMaxRateWindow::Flip()
 {
     float color[4] = { 1.0f, 0.0f, 0.0f, 1.0f }; // RGBA
     m_d3dContext->ClearRenderTargetView(m_renderTargetView.get(), color);
@@ -78,7 +84,7 @@ void FullScreenMaxRateWindow::Flip()
     winrt::check_hresult(m_swapChain->Present1(0, 0, &presentParameters));
 }
 
-LRESULT FullScreenMaxRateWindow::MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam)
+LRESULT FullscreenMaxRateWindow::MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam)
 {
     if (WM_DESTROY == message)
     {

@@ -1,6 +1,6 @@
 ﻿#include "pch.h"
 #include "CaptureSnapshot.h"
-#include "FullScreenMaxRateWindow.h"
+#include "FullscreenMaxRateWindow.h"
 #include "cliParser.h"
 
 using namespace winrt;
@@ -35,7 +35,7 @@ IAsyncOperation<T> CreateOnThreadAsync(DispatcherQueue const& threadQueue, Args 
 {
     wil::shared_event initialized(wil::EventOptions::None);
     T thing{ nullptr };
-    winrt::check_bool(threadQueue.TryEnqueue([&thing, initialized]()
+    winrt::check_bool(threadQueue.TryEnqueue([=, &thing, &initialized]()
     {
         thing = T(args...);
         initialized.SetEvent();
@@ -49,7 +49,7 @@ std::future<std::shared_ptr<T>> CreateSharedOnThreadAsync(DispatcherQueue const&
 {
     wil::shared_event initialized(wil::EventOptions::None);
     std::shared_ptr<T> thing{ nullptr };
-    winrt::check_bool(threadQueue.TryEnqueue([&thing, initialized]()
+    winrt::check_bool(threadQueue.TryEnqueue([=, &thing, &initialized]()
     {
         thing = std::make_shared<T>(args...);
         initialized.SetEvent();
@@ -155,7 +155,7 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
     co_return true;
 }
 
-IAsyncOperation<bool> RenderRateTest(DispatcherQueue const& compositorThreadQueue, CompositorController const& compositorController, IDirect3DDevice const& device)
+IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, FullscreenMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -165,7 +165,7 @@ IAsyncOperation<bool> RenderRateTest(DispatcherQueue const& compositorThreadQueu
     try
     {
         // Create the window on the compositor thread to borrow the message pump
-        auto window = co_await CreateSharedOnThreadAsync<FullScreenMaxRateWindow>(compositorThreadQueue);
+        auto window = co_await CreateSharedOnThreadAsync<FullscreenMaxRateWindow>(compositorThreadQueue, mode);
 
         // Start capturing the window. Make note of the timestamps.
         auto item = CreateCaptureItemForWindow(window->m_window);
@@ -204,10 +204,15 @@ IAsyncOperation<bool> RenderRateTest(DispatcherQueue const& compositorThreadQueu
         session.Close();
         framePool.Close();
 
-        wprintf(L"Average rendered frame time: %fms\n", renderTimer.ComputeAverageFrameTime().count());
+        auto renderAverageFrameTime = renderTimer.ComputeAverageFrameTime();
+        auto captureAverageFrameTime = captureTimer.ComputeAverageFrameTime();
+
+        wprintf(L"Average rendered frame time: %fms\n", renderAverageFrameTime.count());
         wprintf(L"Number of rendered frames: %d\n", renderTimer.m_totalFrames);
-        wprintf(L"Average capture frame time: %fms\n", captureTimer.ComputeAverageFrameTime().count());
+        wprintf(L"Average capture frame time: %fms\n", captureAverageFrameTime.count());
         wprintf(L"Number of capture frames: %d\n", captureTimer.m_totalFrames);
+
+        // TODO: Compare average frame times and determine if they are close enough.
     }
     catch (hresult_error const& error)
     {
@@ -298,37 +303,38 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
     auto command = args[0];
     args.erase(args.begin());
 
-    if (command == L"test")
+    if (command == L"alpha")
     {
-        auto testIdString = GetFlagValue(args, L"--id");
-        WINRT_VERIFY(!testIdString.empty());
-        auto testId = std::stoi(testIdString);
-        if (testId < 0 || testId > 2)
+        auto transparencyPassed = co_await TransparencyTest(compositorController, device);
+    }
+    else if (command == L"fullscreen-rate")
+    {
+        auto setFullscreenState = GetFlag(args, L"--setfullscreenstate", L"-sfs");
+        auto fullscreenWindow = GetFlag(args, L"--fullscreenwindow", L"-fw");
+        if (setFullscreenState == fullscreenWindow)
         {
-            std::wcout << L"Invalid test id!" << std::endl;
+            PrintUsage();
             co_return;
         }
 
-        switch (testId)
+        auto mode = FullscreenMode::SetFullscreenState;
+        if (fullscreenWindow)
         {
-        case 0:
-            {
-                auto transparencyPassed = co_await TransparencyTest(compositorController, device);
-            }
-            break;
-        case 1:
-            {
-                auto renderRatePassed = co_await RenderRateTest(compositorThread, compositorController, device);
-            }
-            break;
-        case 2:
-            {
-                auto windowName = GetFlagValue(args, L"--window");
-                WINRT_VERIFY(!windowName.empty());
-                auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName);
-            }
-            break;
+            mode = FullscreenMode::FullscreenWindow;
         }
+
+        auto renderRatePassed = co_await RenderRateTest(compositorController, device, compositorThread, mode);
+    }
+    else if (command == L"window-rate")
+    {
+        auto windowName = GetFlagValue(args, L"--window");
+        if (windowName.empty())
+        {
+            PrintUsage();
+            co_return;
+        }
+
+        auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName);
     }
     else
     {
@@ -342,7 +348,7 @@ int wmain(int argc, wchar_t* argv[])
 {
     init_apartment();
 
-    FullScreenMaxRateWindow::RegisterWindowClass();
+    FullscreenMaxRateWindow::RegisterWindowClass();
 
     std::vector<std::wstring> args(argv + 1, argv + argc);
     MainAsync(args).get();

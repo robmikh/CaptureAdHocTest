@@ -1,12 +1,18 @@
 #pragma once
 #include "DesktopWindow.h"
 
-struct FullScreenMaxRateWindow : DesktopWindow<FullScreenMaxRateWindow>
+enum class FullscreenMode
+{
+    SetFullscreenState,
+    FullscreenWindow
+};
+
+struct FullscreenMaxRateWindow : DesktopWindow<FullscreenMaxRateWindow>
 {
     static void RegisterWindowClass();
 
-    FullScreenMaxRateWindow();
-    ~FullScreenMaxRateWindow();
+    FullscreenMaxRateWindow(FullscreenMode mode);
+    ~FullscreenMaxRateWindow();
 
     LRESULT MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam);
 
