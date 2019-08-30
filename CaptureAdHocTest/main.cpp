@@ -223,12 +223,19 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
-IAsyncOperation<bool> WindowRenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, std::wstring const& windowName)
+IAsyncOperation<bool> WindowRenderRateTest(
+    CompositorController const& compositorController, 
+    IDirect3DDevice const& device, 
+    std::wstring const& windowName,
+    std::chrono::seconds delay,
+    std::chrono::seconds duration)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
     com_ptr<ID3D11DeviceContext> d3dContext;
     d3dDevice->GetImmediateContext(d3dContext.put());
+
+    co_await delay;
 
     try
     {
@@ -255,7 +262,7 @@ IAsyncOperation<bool> WindowRenderRateTest(CompositorController const& composito
         session.StartCapture();
 
         // Run for awhile
-        co_await std::chrono::seconds(10);
+        co_await duration;
 
         session.Close();
         framePool.Close();
@@ -309,6 +316,7 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
     }
     else if (command == L"fullscreen-rate")
     {
+        // TODO: change this to an enum in the cli
         auto setFullscreenState = GetFlag(args, L"--setfullscreenstate", L"-sfs");
         auto fullscreenWindow = GetFlag(args, L"--fullscreenwindow", L"-fw");
         if (setFullscreenState == fullscreenWindow)
@@ -334,7 +342,10 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
             co_return;
         }
 
-        auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName);
+        auto delay = GetFlagValueWithDefault(args, L"--delay", std::chrono::seconds(0));
+        auto duration = GetFlagValueWithDefault(args, L"--duration", std::chrono::seconds(10));
+
+        auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName, delay, duration);
     }
     else
     {

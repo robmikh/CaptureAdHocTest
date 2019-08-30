@@ -26,6 +26,40 @@ std::wstring GetFlagValue(
     return aliasResult;
 }
 
+template <typename T>
+T GetFlagValueWithDefault(
+    std::vector<std::wstring> const& args,
+    std::wstring const& flag,
+    T defaultValue);
+
+template <>
+std::wstring GetFlagValueWithDefault(
+    std::vector<std::wstring> const& args,
+    std::wstring const& flag,
+    std::wstring defaultValue)
+{
+    auto value = GetFlagValue(args, flag);
+    if (!value.empty())
+    {
+        return value;
+    }
+    return defaultValue;
+}
+
+template <>
+std::chrono::seconds GetFlagValueWithDefault(
+    std::vector<std::wstring> const& args,
+    std::wstring const& flag,
+    std::chrono::seconds defaultValue)
+{
+    auto value = GetFlagValue(args, flag);
+    if (!value.empty())
+    {
+        return std::chrono::seconds(std::stoi(value));
+    }
+    return defaultValue;
+}
+
 bool GetFlag(
     std::vector<std::wstring> const& args,
     std::wstring const& flag)
@@ -49,5 +83,5 @@ void PrintUsage()
     std::wcout << std::endl;
     std::wcout << L"\t" << L"alpha" << std::endl;
     std::wcout << L"\t" << L"fullscreen-rate"<< L"\t" << L"[ --setfullscreenstate (-sfs) || --fullscreenwindow (-fw) ]" << std::endl;
-    std::wcout << L"\t" << L"window-rate" << L"\t" << L"--window <window title string, required>" << std::endl;
+    std::wcout << L"\t" << L"window-rate" << L"\t" << L"--window <window title string, required> --delay <seconds, optional> --duration <seconds, optional, default 10s>" << std::endl;
 }
