@@ -84,4 +84,5 @@ void PrintUsage()
     std::wcout << L"\t" << L"alpha" << std::endl;
     std::wcout << L"\t" << L"fullscreen-rate"<< L"\t" << L"[ --setfullscreenstate (-sfs) || --fullscreenwindow (-fw) ]" << std::endl;
     std::wcout << L"\t" << L"window-rate" << L"\t" << L"--window <window title string, required> --delay <seconds, optional> --duration <seconds, optional, default 10s>" << std::endl;
+    std::wcout << L"\t" << L"cursor-disable" << L"\t" << L"--monitor (-m) <flag, monitor based capture, optional> --window (-w) <flag, window based capture, optional>" << std::endl;
 }

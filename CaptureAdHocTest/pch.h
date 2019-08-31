@@ -14,6 +14,7 @@
 #include <winrt/Windows.UI.h>
 #include <winrt/Windows.UI.Composition.h>
 #include <winrt/Windows.UI.Composition.Core.h>
+#include <winrt/Windows.UI.Composition.Desktop.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3d11.h>
@@ -38,6 +39,7 @@
 #include <wincodec.h>
 
 // Helpers
+#include "composition.interop.h"
 #include "d3dHelpers.h"
 #include "direct3d11.interop.h"
 #include "capture.interop.h"

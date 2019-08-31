@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "CaptureSnapshot.h"
 #include "FullscreenMaxRateWindow.h"
+#include "DummyWindow.h"
 #include "cliParser.h"
 
 using namespace winrt;
@@ -70,6 +71,8 @@ public:
 
         bool operator==(const Color& color) { return B == color.B && G == color.G && R == color.R && A == color.A; }
         bool operator!=(const Color& color) { return !(*this == color); }
+
+        winrt::Windows::UI::Color to_color() { return winrt::Windows::UI::Color{ A, R, G, B }; }
     };
 
     MappedTexture(com_ptr<ID3D11DeviceContext> d3dContext, com_ptr<ID3D11Texture2D> texture)
@@ -279,6 +282,217 @@ IAsyncOperation<bool> WindowRenderRateTest(
     co_return true;
 }
 
+// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setsystemcursor
+enum class CursorType : DWORD
+{
+    Normal = 32512,
+    Wait = 32514,
+    AppStarting = 32650
+};
+
+struct CursorScope
+{
+    CursorScope(wil::shared_hcursor const& cursor, CursorType cursorType)
+    {
+        m_cursor.reset(CopyCursor(cursor.get()));
+        m_type = cursorType;
+
+        m_oldCursor.reset(CopyCursor(LoadCursorW(nullptr, MAKEINTRESOURCEW((DWORD)m_type))));
+
+        winrt::check_bool(SetSystemCursor(m_cursor.get(), (DWORD)m_type));
+    }
+
+    ~CursorScope()
+    {
+        winrt::check_bool(SetSystemCursor(m_oldCursor.get(), (DWORD)m_type));
+    }
+
+private:
+    wil::unique_hcursor m_cursor;
+    wil::unique_hcursor m_oldCursor;
+    CursorType m_type;
+};
+
+template <typename T>
+T CreateWin32Struct()
+{
+    T thing = {};
+    thing.cbSize = sizeof(T);
+    return thing;
+}
+
+auto PrepareWindowAndCursorForCenterTest(HWND window)
+{
+    // Push the window to the top
+    winrt::check_bool(SetWindowPos(window, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
+
+    // Find where the window is
+    RECT rect = {};
+    winrt::check_bool(GetWindowRect(window, &rect));
+    auto windowWidth = rect.right - rect.left;
+    auto windowHeight = rect.bottom - rect.top;
+
+    // Move the cursor to the middle of the window
+    auto mouseX = rect.left + windowWidth / 2;
+    auto mouseY = rect.top + windowHeight / 2;
+    winrt::check_bool(SetCursorPos(mouseX, mouseY));
+
+    return std::pair(mouseX, mouseY);
+}
+
+enum class RemoteCaptureType : uint32_t
+{
+    Window,
+    Monitor
+};
+
+std::wstring RemoteCaptureTypeToString(RemoteCaptureType captureType)
+{
+    switch (captureType)
+    {
+    case RemoteCaptureType::Monitor:
+        return L"Monitor";
+    case RemoteCaptureType::Window:
+        return L"Window";
+    }
+}
+
+IAsyncOperation<Color> TestCenterOfWindowAsync(IDirect3DDevice const& device, HWND window, bool cursorEnabled, RemoteCaptureType captureType)
+{
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    auto [mouseX, mouseY] = PrepareWindowAndCursorForCenterTest(window);
+
+    GraphicsCaptureItem item{ nullptr };
+    switch (captureType)
+    {
+    case RemoteCaptureType::Monitor:
+    {
+        // Get the monitor the window is on
+        auto monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONULL);
+        winrt::check_bool(monitor);
+        auto monitorInfo = CreateWin32Struct<MONITORINFO>();
+        winrt::check_bool(GetMonitorInfoW(monitor, &monitorInfo));
+        mouseX -= monitorInfo.rcMonitor.left;
+        mouseY -= monitorInfo.rcMonitor.top;
+
+        item = CreateCaptureItemForMonitor(monitor);
+    }
+    break;
+    case RemoteCaptureType::Window:
+    {
+        // Find where the window is
+        RECT rect = {};
+        winrt::check_bool(GetWindowRect(window, &rect));
+        mouseX -= rect.left;
+        mouseY -= rect.top;
+
+        item = CreateCaptureItemForWindow(window);
+    }
+    break;
+    }
+
+    auto frame = co_await CaptureSnapshot::TakeAsync(device, item, true, cursorEnabled);
+    auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame);
+
+    // Map the texture and check the image
+    auto mapped = MappedTexture(d3dContext, frameTexture);
+    co_return mapped.ReadBGRAPixel(mouseX, mouseY).to_color();
+}
+
+IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDirect3DDevice const& device, HWND window, Color windowColor, Color cursorColor)
+{
+    auto cursorEnabled = true;
+    try
+    {
+        auto color = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
+        check_color(color, cursorColor);
+
+        cursorEnabled = false;
+        color = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
+        check_color(color, windowColor);
+
+    }
+    catch (hresult_error const& error)
+    {
+        auto typeString = RemoteCaptureTypeToString(captureType);
+        wprintf(L"Cursor disabled test (%s-%s) failed! 0x%08x - %s \n", typeString.c_str(), cursorEnabled ? L"Enabled" : L"Disabled", error.code(), error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
+IAsyncOperation<bool> CursorDisableTest(
+    CompositorController const& compositorController, 
+    IDirect3DDevice const& device, 
+    DispatcherQueue const& compositorThreadQueue,
+    bool monitor,
+    bool window)
+{
+    if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(winrt::name_of<GraphicsCaptureSession>(), L"IsCursorCaptureEnabled"))
+    {
+        auto compositor = compositorController.Compositor();
+        auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+        com_ptr<ID3D11DeviceContext> d3dContext;
+        d3dDevice->GetImmediateContext(d3dContext.put());
+
+        // Create the window on the compositor thread to borrow the message pump
+        auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue);
+
+        // Setup a visual tree to make the window red
+        auto target = CreateDesktopWindowTarget(compositor, window->m_window, false);
+        auto root = compositor.CreateSpriteVisual();
+        root.RelativeSizeAdjustment({ 1, 1 });
+        root.Brush(compositor.CreateColorBrush(Colors::Red()));
+        target.Root(root);
+        compositorController.Commit();
+
+        // Create a square cursor that inverts content
+        std::array<BYTE, 128> andMask;
+        std::fill_n(andMask.data(), andMask.size(), 0xFF);
+        std::array<BYTE, 128> orMask = andMask;
+        wil::shared_hcursor newCursor(CreateCursor(GetModuleHandleW(nullptr), 16, 16, 32, 32, andMask.data(), orMask.data()));
+
+        {
+            CursorScope normalCursor(newCursor, CursorType::Normal);
+            CursorScope waitCursor(newCursor, CursorType::Wait);
+            CursorScope appStartingCursor(newCursor, CursorType::AppStarting);
+
+            try
+            {
+                auto windowColor = Colors::Red();
+                // Aqua and Cyan happen to be the inverse of Red
+                auto cursorColor = Colors::Aqua();
+
+                if (monitor)
+                {
+                    co_await TestCenterOfWindowAsync(RemoteCaptureType::Monitor, device, window->m_window, windowColor, cursorColor);
+                }
+                if (window)
+                {
+                    co_await TestCenterOfWindowAsync(RemoteCaptureType::Window, device, window->m_window, windowColor, cursorColor);
+                }
+            }
+            catch (hresult_error const& error)
+            {
+                wprintf(L"Cursor disabled test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+                co_return false;
+            }
+        }
+          
+        CloseWindow(window->m_window);
+        co_return true;
+    }
+    else
+    {
+        wprintf(L"Metadata for IsCursorCaptureEnabled is not present on this system!");
+        co_return false;
+    }
+}
+
 IAsyncAction MainAsync(std::vector<std::wstring> args)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
@@ -347,6 +561,19 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
 
         auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName, delay, duration);
     }
+    else if (command == L"cursor-disable")
+    {
+        auto monitor = GetFlag(args, L"--monitor", L"-m");
+        auto window = GetFlag(args, L"--window", L"-w");
+        if (!monitor && !window)
+        {
+            std::wcout << L"Nothing to test!" << std::endl;
+            PrintUsage();
+            co_return;
+        }
+
+        auto cursorPassed = co_await CursorDisableTest(compositorController, device, compositorThread, monitor, window);
+    }
     else
     {
         std::wcout << L"Unknown command! \"" << command << L"\"" << std::endl;
@@ -360,6 +587,7 @@ int wmain(int argc, wchar_t* argv[])
     init_apartment();
 
     FullscreenMaxRateWindow::RegisterWindowClass();
+    DummyWindow::RegisterWindowClass();
 
     std::vector<std::wstring> args(argv + 1, argv + argc);
     MainAsync(args).get();
