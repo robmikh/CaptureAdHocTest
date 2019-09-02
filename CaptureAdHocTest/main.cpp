@@ -279,6 +279,20 @@ IAsyncOperation<bool> WindowRenderRateTest(
     co_return true;
 }
 
+std::wstring GetBuildString()
+{
+    wil::unique_hkey registryKey;
+    winrt::check_hresult(RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &registryKey));
+
+    DWORD dataSize = 0;
+    winrt::check_hresult(RegGetValueW(registryKey.get(), nullptr, L"BuildLabEx", RRF_RT_REG_SZ, nullptr, nullptr, &dataSize));
+
+    std::wstring buildString(dataSize / sizeof(wchar_t), 0);
+    winrt::check_hresult(RegGetValueW(registryKey.get(), nullptr, L"BuildLabEx", RRF_RT_REG_SZ, nullptr, reinterpret_cast<void*>(buildString.data()), &dataSize));
+
+    return buildString;
+}
+
 IAsyncAction MainAsync(std::vector<std::wstring> args)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
@@ -346,6 +360,11 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
         auto duration = GetFlagValueWithDefault(args, L"--duration", std::chrono::seconds(10));
 
         auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName, delay, duration);
+    }
+    else if (command == L"pc-info")
+    {
+        auto buildString = GetBuildString();
+        wprintf(L"PC info: %s\n", buildString.c_str());
     }
     else
     {
