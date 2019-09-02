@@ -113,6 +113,27 @@ private:
     D3D11_TEXTURE2D_DESC m_textureDesc = {};
 };
 
+enum class Commands
+{
+    Alpha,
+    FullscreenRate,
+    WindowRate,
+    CursorDisable,
+    PCInfo,
+    Help
+};
+
+struct CommandOptions
+{
+    Commands selected = Commands::Help;
+    FullscreenMode fullscreenMode = FullscreenMode::SetFullscreenState;
+    std::wstring windowTitle;
+    int delayInSeconds = 0;
+    int durationInSeconds = 10;
+    bool monitor = false;
+    bool window = false;
+};
+
 IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorController, IDirect3DDevice const& device)
 {
     auto compositor = compositorController.Compositor();
@@ -413,7 +434,6 @@ IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDi
         cursorEnabled = false;
         color = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
         check_color(color, windowColor);
-
     }
     catch (hresult_error const& error)
     {
@@ -493,7 +513,21 @@ IAsyncOperation<bool> CursorDisableTest(
     }
 }
 
-IAsyncAction MainAsync(std::vector<std::wstring> args)
+std::wstring GetBuildString()
+{
+    wil::unique_hkey registryKey;
+    winrt::check_hresult(RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &registryKey));
+
+    DWORD dataSize = 0;
+    winrt::check_hresult(RegGetValueW(registryKey.get(), nullptr, L"BuildLabEx", RRF_RT_REG_SZ, nullptr, nullptr, &dataSize));
+
+    std::wstring buildString(dataSize / sizeof(wchar_t), 0);
+    winrt::check_hresult(RegGetValueW(registryKey.get(), nullptr, L"BuildLabEx", RRF_RT_REG_SZ, nullptr, reinterpret_cast<void*>(buildString.data()), &dataSize));
+
+    return buildString;
+}
+
+IAsyncAction MainAsync(CommandOptions options)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
     // we can't use our current thread. Create a new one that is controlled by the dispatcher.
@@ -516,70 +550,90 @@ IAsyncAction MainAsync(std::vector<std::wstring> args)
     check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
 
     // Tests
-    if (args.size() <= 0)
+    switch (options.selected)
     {
-        PrintUsage();
-        co_return;
-    }
-    auto command = args[0];
-    args.erase(args.begin());
-
-    if (command == L"alpha")
+    case Commands::Alpha:
     {
         auto transparencyPassed = co_await TransparencyTest(compositorController, device);
     }
-    else if (command == L"fullscreen-rate")
+    break;
+    case Commands::FullscreenRate:
     {
-        // TODO: change this to an enum in the cli
-        auto setFullscreenState = GetFlag(args, L"--setfullscreenstate", L"-sfs");
-        auto fullscreenWindow = GetFlag(args, L"--fullscreenwindow", L"-fw");
+        auto renderRatePassed = co_await RenderRateTest(compositorController, device, compositorThread, options.fullscreenMode);
+    }
+    break;
+    case Commands::WindowRate:
+    {
+        auto delay = std::chrono::seconds(options.delayInSeconds);
+        auto duration = std::chrono::seconds(options.durationInSeconds);
+
+        auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, options.windowTitle, delay, duration);
+    }
+    break;
+	case Commands::CursorDisable:
+    {
+        auto cursorDisable = co_await CursorDisableTest(compositorController, device, compositorThread, options.monitor, options.window);
+    }
+    break;
+    case Commands::PCInfo:
+    {
+        auto buildString = GetBuildString();
+        wprintf(L"PC info: %s\n", buildString.c_str());
+    }
+    break;
+    }
+}
+
+bool TryParseCommandOptions(wcliparse::Matches<Commands>& matches, CommandOptions& options)
+{
+    options.selected = matches.Command();
+    switch (options.selected)
+    {
+    case Commands::FullscreenRate:
+    {
+        auto setFullscreenState = matches.IsPresent(L"--setfullscreenstate");
+        auto fullscreenWindow = matches.IsPresent(L"--fullscreenwindow");
         if (setFullscreenState == fullscreenWindow)
         {
-            PrintUsage();
-            co_return;
+            return false;
         }
 
-        auto mode = FullscreenMode::SetFullscreenState;
-        if (fullscreenWindow)
-        {
-            mode = FullscreenMode::FullscreenWindow;
-        }
-
-        auto renderRatePassed = co_await RenderRateTest(compositorController, device, compositorThread, mode);
+        options.fullscreenMode = setFullscreenState ? FullscreenMode::SetFullscreenState : FullscreenMode::FullscreenWindow;
     }
-    else if (command == L"window-rate")
+        break;
+    case Commands::WindowRate:
     {
-        auto windowName = GetFlagValue(args, L"--window");
-        if (windowName.empty())
+        options.windowTitle = matches.ValueOf(L"--window");
+
+        if (matches.IsPresent(L"--delay"))
         {
-            PrintUsage();
-            co_return;
+            auto delayString = matches.ValueOf(L"--delay");
+            options.delayInSeconds = std::stoi(delayString);
         }
 
-        auto delay = GetFlagValueWithDefault(args, L"--delay", std::chrono::seconds(0));
-        auto duration = GetFlagValueWithDefault(args, L"--duration", std::chrono::seconds(10));
-
-        auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, windowName, delay, duration);
+        if (matches.IsPresent(L"--duration"))
+        {
+            auto durationString = matches.ValueOf(L"--duration");
+            options.durationInSeconds = std::stoi(durationString);
+        }
     }
-    else if (command == L"cursor-disable")
+        break;
+    case Commands::CursorDisable:
     {
-        auto monitor = GetFlag(args, L"--monitor", L"-m");
-        auto window = GetFlag(args, L"--window", L"-w");
+        auto monitor = matches.IsPresent(L"--monitor");
+        auto window = matches.IsPresent(L"--window");
         if (!monitor && !window)
         {
-            std::wcout << L"Nothing to test!" << std::endl;
-            PrintUsage();
-            co_return;
+            return false;
         }
 
-        auto cursorPassed = co_await CursorDisableTest(compositorController, device, compositorThread, monitor, window);
+        options.monitor = monitor;
+        options.window = window;
     }
-    else
-    {
-        std::wcout << L"Unknown command! \"" << command << L"\"" << std::endl;
-        PrintUsage();
-        co_return;
+        break;
     }
+
+    return true;
 }
 
 int wmain(int argc, wchar_t* argv[])
@@ -589,6 +643,50 @@ int wmain(int argc, wchar_t* argv[])
     FullscreenMaxRateWindow::RegisterWindowClass();
     DummyWindow::RegisterWindowClass();
 
-    std::vector<std::wstring> args(argv + 1, argv + argc);
-    MainAsync(args).get();
+    auto app = wcliparse::Application<Commands>(L"CaptureAdHocTest")
+        .Version(L"0.1.0")
+        .Author(L"Robert Mikhayelyan (rob.mikh@outlook.com)")
+        .About(L"A small utility to test various parts of the Windows.Graphics.Capture API.")
+        .Command(wcliparse::Command(L"alpha", Commands::Alpha))
+        .Command(wcliparse::Command(L"fullscreen-rate", Commands::FullscreenRate)
+            .Argument(wcliparse::Argument(L"--setfullscreenstate")
+                .Alias(L"-sfs"))
+            .Argument(wcliparse::Argument(L"--fullscreenwindow")
+                .Alias(L"-fw")))
+        .Command(wcliparse::Command(L"window-rate", Commands::WindowRate)
+            .Argument(wcliparse::Argument(L"--window")
+                .Required(true)
+                .Description(L"window title string")
+                .TakesValue(true))
+            .Argument(wcliparse::Argument(L"--delay")
+                .Description(L"delay in seconds")
+                .TakesValue(true))
+            .Argument(wcliparse::Argument(L"--duration")
+                .Description(L"duration in seconds")
+                .TakesValue(true)
+                .DefaultValue(L"10")))
+        .Command(wcliparse::Command(L"cursor-disable", Commands::CursorDisable)
+            .Argument(wcliparse::Argument(L"--monitor")
+                .Alias(L"-m"))
+            .Argument(wcliparse::Argument(L"--window")
+                .Alias(L"-w")))
+        .Command(wcliparse::Command(L"pc-info", Commands::PCInfo));
+
+    CommandOptions options;
+    try
+    {
+        auto matches = app.Parse(argc, argv);
+        if (!TryParseCommandOptions(matches, options))
+        {
+            throw std::runtime_error("Invalid input!");
+        }
+    }
+    catch (std::runtime_error const&)
+    {
+        app.PrintUsage();
+        return 1;
+    }
+
+    MainAsync(options).get();
+    return 0;
 }
