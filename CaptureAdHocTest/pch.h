@@ -1,5 +1,8 @@
 ﻿#pragma once
 
+// Collision from minwindef min/max and std
+#define NOMINMAX 
+
 #include <Unknwn.h>
 #include <inspectable.h>
 
