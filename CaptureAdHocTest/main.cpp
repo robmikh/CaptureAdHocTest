@@ -435,7 +435,7 @@ std::wstring RemoteCaptureTypeToString(RemoteCaptureType captureType)
     }
 }
 
-IAsyncOperation<Color> TestCenterOfWindowAsync(IDirect3DDevice const& device, HWND window, bool cursorEnabled, RemoteCaptureType captureType)
+std::future<std::pair<IDirect3DSurface, Color>> TestCenterOfWindowAsync(IDirect3DDevice const& device, HWND window, bool cursorEnabled, RemoteCaptureType captureType)
 {
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
     com_ptr<ID3D11DeviceContext> d3dContext;
@@ -477,29 +477,48 @@ IAsyncOperation<Color> TestCenterOfWindowAsync(IDirect3DDevice const& device, HW
 
     // Map the texture and check the image
     auto mapped = MappedTexture(d3dContext, frameTexture);
-    co_return mapped.ReadBGRAPixel(mouseX, mouseY).to_color();
+    co_return std::pair<IDirect3DSurface, Color>(frame, mapped.ReadBGRAPixel(mouseX, mouseY).to_color());
 }
 
 IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDirect3DDevice const& device, HWND window, Color windowColor, Color cursorColor)
 {
     auto cursorEnabled = true;
+    IDirect3DSurface frame{ nullptr };
+    auto success = true;
+    std::wstring failureFileName;
     try
     {
-        auto color = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
-        check_color(color, cursorColor);
-
+        {
+            auto [currentFrame, color] = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
+            frame = currentFrame;
+            check_color(color, cursorColor);
+        }
+        
         cursorEnabled = false;
-        color = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
-        check_color(color, windowColor);
+        {
+            auto [currentFrame, color] = co_await TestCenterOfWindowAsync(device, window, cursorEnabled, captureType);
+            frame = currentFrame;
+            check_color(color, windowColor);
+        }
     }
     catch (hresult_error const& error)
     {
         auto typeString = RemoteCaptureTypeToString(captureType);
-        wprintf(L"Cursor disabled test (%s-%s) failed! 0x%08x - %s \n", typeString.c_str(), cursorEnabled ? L"Enabled" : L"Disabled", error.code(), error.message().c_str());
-        co_return false;
+        std::wstring cursorStateString(cursorEnabled ? L"Enabled" : L"Disabled");
+        wprintf(L"Cursor disabled test (%s-%s) failed! 0x%08x - %s \n", typeString.c_str(), cursorStateString.c_str(), error.code(), error.message().c_str());
+        std::wstringstream stringStream;
+        stringStream << L"cursor-disable_" << typeString.c_str() << L"_" << cursorStateString.c_str() << L"_failure.png";
+        failureFileName = stringStream.str();
+        success = false;
     }
 
-    co_return true;
+    if (!success && frame != nullptr)
+    {
+        auto file = co_await SaveFrameAsync(device, frame, failureFileName.c_str());
+        wprintf(L"Failure file saved: %s\n", file.Path().c_str());
+    }
+
+    co_return success;
 }
 
 IAsyncOperation<bool> CursorDisableTest(
@@ -518,6 +537,11 @@ IAsyncOperation<bool> CursorDisableTest(
 
         // Create the window on the compositor thread to borrow the message pump
         auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue);
+
+        // The window animation may still be going on when we do a capture, which screws
+        // up our assumptions on what the different pixels should be. Wait a bit to 
+        // mitigate this.
+        co_await std::chrono::milliseconds(250);
 
         // Setup a visual tree to make the window red
         auto target = CreateDesktopWindowTarget(compositor, window->m_window, false);
