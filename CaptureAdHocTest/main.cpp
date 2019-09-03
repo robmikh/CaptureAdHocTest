@@ -59,6 +59,53 @@ std::future<std::shared_ptr<T>> CreateSharedOnThreadAsync(DispatcherQueue const&
     co_return thing;
 }
 
+IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDirect3DSurface const& surface, std::wstring const& fileName)
+{
+    // Get a file to save the screenshot
+    auto currentPath = std::filesystem::current_path();
+    auto folder = co_await StorageFolder::GetFolderFromPathAsync(currentPath.wstring());
+    auto file = co_await folder.CreateFileAsync(fileName.c_str(), CreationCollisionOption::ReplaceExisting);
+
+    // Get the file stream
+    auto randomAccessStream = co_await file.OpenAsync(FileAccessMode::ReadWrite);
+    auto stream = CreateStreamFromRandomAccessStream(randomAccessStream);
+
+    // Get the DXGI surface from the frame
+    auto dxgiFrameTexture = GetDXGIInterfaceFromObject<IDXGISurface>(surface);
+
+    // Create graphics resources
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+
+    // Get a D2D bitmap for our snapshot
+    // TODO: Since this sample doesn't use D2D any other way, it may be better to map 
+    //       the pixels manually and hand them to WIC. However, using d2d is easier for now.
+    auto d2dFactory = CreateD2DFactory();
+    auto d2dDevice = CreateD2DDevice(d2dFactory, d3dDevice);
+    winrt::com_ptr<ID2D1DeviceContext> d2dContext;
+    check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
+    com_ptr<ID2D1Bitmap1> d2dBitmap;
+    check_hresult(d2dContext->CreateBitmapFromDxgiSurface(dxgiFrameTexture.get(), nullptr, d2dBitmap.put()));
+
+    // Encode the snapshot
+    auto wicFactory = CreateWICFactory();
+    com_ptr<IWICBitmapEncoder> encoder;
+    check_hresult(wicFactory->CreateEncoder(GUID_ContainerFormatPng, nullptr, encoder.put()));
+    check_hresult(encoder->Initialize(stream.get(), WICBitmapEncoderNoCache));
+
+    com_ptr<IWICBitmapFrameEncode> wicFrame;
+    com_ptr<IPropertyBag2> frameProperties;
+    check_hresult(encoder->CreateNewFrame(wicFrame.put(), frameProperties.put()));
+    check_hresult(wicFrame->Initialize(frameProperties.get()));
+
+    com_ptr<IWICImageEncoder> imageEncoder;
+    check_hresult(wicFactory->CreateImageEncoder(d2dDevice.get(), imageEncoder.put()));
+    check_hresult(imageEncoder->WriteFrame(d2dBitmap.get(), wicFrame.get(), nullptr));
+    check_hresult(wicFrame->Commit());
+    check_hresult(encoder->Commit());
+
+    co_return file;
+}
+
 class MappedTexture
 {
 public:
@@ -141,6 +188,8 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
     com_ptr<ID3D11DeviceContext> d3dContext;
     d3dDevice->GetImmediateContext(d3dContext.put());
 
+    IDirect3DSurface frame{ nullptr };
+    auto success = true;
     try
     {
         // Build the visual tree
@@ -159,7 +208,7 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
         auto asyncOperation = CaptureSnapshot::TakeAsync(device, item, true); // we want the texture to be a staging texture
         // We need to commit before we wait on this
         compositorController.Commit();
-        auto frame = co_await asyncOperation;
+        frame = co_await asyncOperation;
         auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame);
 
         // Map the texture and check the image
@@ -167,16 +216,24 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
             auto mapped = MappedTexture(d3dContext, frameTexture);
 
             check_color(mapped.ReadBGRAPixel(50, 50), Colors::Red());
-            check_color(mapped.ReadBGRAPixel(5, 5), Colors::Transparent());
+            // We don't use Colors::Transparent() here becuase that is transparent white.
+            // Right now the capture API uses transparent black to clear.
+            check_color(mapped.ReadBGRAPixel(5, 5), Color{ 0, 0, 0, 0 });
         }
     }
     catch (hresult_error const& error)
     {
         wprintf(L"Transparency test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
-        co_return false;
+        success = false;
     }
 
-    co_return true;
+    if (!success && frame != nullptr)
+    {
+        auto file = co_await SaveFrameAsync(device, frame, L"alpha_failure.png");
+        wprintf(L"Failure file saved: %s\n", file.Path().c_str());
+    }
+
+    co_return success;
 }
 
 IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, FullscreenMode mode)
