@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 namespace wcliparse
 {
     namespace impl
@@ -128,6 +126,59 @@ namespace wcliparse
         {
             return GetFlag(args, flag) || GetFlag(args, alias);
         }
+
+        std::wstring GetFlagValueEx(
+            std::vector<std::wstring> const& args,
+            std::wstring const& flag,
+            std::wstring const& alias,
+            std::wstring defaultValue)
+        {
+            std::wstring result;
+
+            if (!defaultValue.empty())
+            {
+                if (!alias.empty())
+                {
+                    result = impl::GetFlagValueWithDefault(args, flag, alias, defaultValue);
+                }
+                else
+                {
+                    result = impl::GetFlagValueWithDefault(args, flag, defaultValue);
+                }
+            }
+            else
+            {
+                if (!alias.empty())
+                {
+                    result = impl::GetFlagValue(args, flag, alias);
+                }
+                else
+                {
+                    result = impl::GetFlagValue(args, flag);
+                }
+            }
+
+            return result;
+        }
+
+        bool GetFlagEx(
+            std::vector<std::wstring> const& args,
+            std::wstring const& flag,
+            std::wstring const& alias)
+        {
+            bool result = false;
+
+            if (!alias.empty())
+            {
+                result = impl::GetFlag(args, flag, alias);
+            }
+            else
+            {
+                result = impl::GetFlag(args, flag);
+            }
+
+            return result;
+        }
     }
 
     class Argument
@@ -232,41 +283,13 @@ namespace wcliparse
                         {
                             auto defaultValue = argument.DefaultValue();
 
-                            if (!defaultValue.empty())
-                            {
-                                if (!alias.empty())
-                                {
-                                    value = impl::GetFlagValueWithDefault(args, name, alias, defaultValue);
-                                }
-                                else
-                                {
-                                    value = impl::GetFlagValueWithDefault(args, name, defaultValue);
-                                }
-                            }
-                            else
-                            {
-                                if (!alias.empty())
-                                {
-                                    value = impl::GetFlagValue(args, name, alias);
-                                }
-                                else
-                                {
-                                    value = impl::GetFlagValue(args, name);
-                                }
-                            }
+                            value = impl::GetFlagValueEx(args, name, alias, defaultValue);
 
                             flagPresent = !value.empty();
                         }
                         else
                         {
-                            if (!alias.empty())
-                            {
-                                flagPresent = impl::GetFlag(args, name, alias);
-                            }
-                            else
-                            {
-                                flagPresent = impl::GetFlag(args, name);
-                            }
+                            flagPresent = impl::GetFlagEx(args, name, alias);
                         }
 
                         if (required && !flagPresent)
