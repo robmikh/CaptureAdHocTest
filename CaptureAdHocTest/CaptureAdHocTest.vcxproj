@@ -106,13 +106,15 @@
     <ClCompile Include="CaptureSnapshot.cpp" />
     <ClCompile Include="DummyWindow.cpp" />
     <ClCompile Include="FullscreenMaxRateWindow.cpp" />
+    <ClCompile Include="FullscreenTransitionWindow.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="capture.interop.h" />
     <ClInclude Include="CaptureSnapshot.h" />
-    <ClInclude Include="cliParser.h" />
+    <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="wcliparse.h" />
     <ClInclude Include="completionSource.h" />
     <ClInclude Include="composition.interop.h" />
     <ClInclude Include="d3dHelpers.h" />

@@ -10,6 +10,7 @@
     <ClCompile Include="CaptureSnapshot.cpp" />
     <ClCompile Include="FullscreenMaxRateWindow.cpp" />
     <ClCompile Include="DummyWindow.cpp" />
+    <ClCompile Include="FullscreenTransitionWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -21,9 +22,10 @@
     <ClInclude Include="CaptureSnapshot.h" />
     <ClInclude Include="DesktopWindow.h" />
     <ClInclude Include="FrameTimer.h" />
-    <ClInclude Include="cliParser.h" />
     <ClInclude Include="FullscreenMaxRateWindow.h" />
     <ClInclude Include="DummyWindow.h" />
     <ClInclude Include="composition.interop.h" />
+    <ClInclude Include="wcliparse.h" />
+    <ClInclude Include="FullscreenTransitionWindow.h" />
   </ItemGroup>
 </Project>

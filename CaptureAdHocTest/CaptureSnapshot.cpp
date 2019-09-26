@@ -43,16 +43,7 @@ CaptureSnapshot::TakeAsync(IDirect3DDevice const& device, GraphicsCaptureItem co
         auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 
         // Make a copy of the texture
-        D3D11_TEXTURE2D_DESC desc = {};
-        frameTexture->GetDesc(&desc);
-        // Clear flags that we don't need
-        desc.Usage = asStagingTexture ? D3D11_USAGE_STAGING : D3D11_USAGE_DEFAULT;
-        desc.BindFlags = asStagingTexture ? 0 : D3D11_BIND_SHADER_RESOURCE;
-        desc.CPUAccessFlags = asStagingTexture ? D3D11_CPU_ACCESS_READ : 0;
-        desc.MiscFlags = 0;
-        com_ptr<ID3D11Texture2D> textureCopy;
-        check_hresult(d3dDevice->CreateTexture2D(&desc, nullptr, textureCopy.put()));
-        d3dContext->CopyResource(textureCopy.get(), frameTexture.get());
+        auto textureCopy = CopyD3DTexture(d3dDevice, frameTexture, asStagingTexture);
 
         auto dxgiSurface = textureCopy.as<IDXGISurface>();
         auto result = CreateDirect3DSurface(dxgiSurface.get());
