@@ -1,7 +1,8 @@
 ﻿#include "pch.h"
 #include "CaptureSnapshot.h"
 #include "FullscreenMaxRateWindow.h"
-#include "cliParser.h"
+#include "FullscreenTransitionWindow.h"
+#include "wcliparse.h"
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -114,6 +115,7 @@ enum class Commands
 {
     Alpha,
     FullscreenRate,
+    FullscreenTransition,
     WindowRate,
     PCInfo,
     Help
@@ -241,6 +243,30 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
+IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    try
+    {
+        // Create the window on the compositor thread to borrow the message pump
+        auto window = co_await CreateSharedOnThreadAsync<FullscreenTransitionWindow>(compositorThreadQueue);
+
+        window->Flip();
+        co_await winrt::resume_on_signal(window->Closed().get());
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
 IAsyncOperation<bool> WindowRenderRateTest(
     CompositorController const& compositorController, 
     IDirect3DDevice const& device, 
@@ -346,6 +372,11 @@ IAsyncAction MainAsync(CommandOptions options)
         auto renderRatePassed = co_await RenderRateTest(compositorController, device, compositorThread, options.fullscreenMode);
     }
     break;
+    case Commands::FullscreenTransition:
+    {
+        auto transitionPassed = co_await FullscreenTransitionTest(compositorController, device, compositorThread);
+    }
+    break;
     case Commands::WindowRate:
     {
         auto delay = std::chrono::seconds(options.delayInSeconds);
@@ -407,6 +438,7 @@ int wmain(int argc, wchar_t* argv[])
     init_apartment();
 
     FullscreenMaxRateWindow::RegisterWindowClass();
+    FullscreenTransitionWindow::RegisterWindowClass();
 
     auto app = wcliparse::Application<Commands>(L"CaptureAdHocTest")
         .Version(L"0.1.0")
@@ -418,6 +450,7 @@ int wmain(int argc, wchar_t* argv[])
                 .Alias(L"-sfs"))
             .Argument(wcliparse::Argument(L"--fullscreenwindow")
                 .Alias(L"-fw")))
+        .Command(wcliparse::Command(L"fullscreen-transition", Commands::FullscreenTransition))
         .Command(wcliparse::Command(L"window-rate", Commands::WindowRate)
             .Argument(wcliparse::Argument(L"--window")
                 .Required(true)
