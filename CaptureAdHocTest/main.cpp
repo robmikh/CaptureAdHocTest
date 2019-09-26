@@ -128,6 +128,7 @@ struct CommandOptions
     std::wstring windowTitle;
     int delayInSeconds = 0;
     int durationInSeconds = 10;
+    FullscreenTransitionTestMode transitionTestMode = FullscreenTransitionTestMode::AdHoc;
 };
 
 IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorController, IDirect3DDevice const& device)
@@ -243,7 +244,20 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
-IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue)
+void TestCenterOfSurface(IDirect3DDevice const& device, IDirect3DSurface const& surface, Color expectedColor)
+{
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    auto frameTexture = CopyD3DTexture(d3dDevice, GetDXGIInterfaceFromObject<ID3D11Texture2D>(surface), true);
+    D3D11_TEXTURE2D_DESC desc = {};
+    frameTexture->GetDesc(&desc);
+    auto mapped = MappedTexture(d3dContext, frameTexture);
+    check_color(mapped.ReadBGRAPixel(desc.Width / 2, desc.Height / 2), expectedColor);
+}
+
+IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, FullscreenTransitionTestMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -253,14 +267,72 @@ IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compo
     try
     {
         // Create the window on the compositor thread to borrow the message pump
-        auto window = co_await CreateSharedOnThreadAsync<FullscreenTransitionWindow>(compositorThreadQueue);
+        auto window = co_await CreateSharedOnThreadAsync<FullscreenTransitionWindow>(compositorThreadQueue, mode);
+        window->Flip(Colors::Red());
 
-        window->Flip();
-        co_await winrt::resume_on_signal(window->Closed().get());
+        if (mode == FullscreenTransitionTestMode::AdHoc)
+        {
+            co_await winrt::resume_on_signal(window->Closed().get());
+        }
+        else
+        {
+            // Start the capture
+            auto item = CreateCaptureItemForWindow(window->m_window);
+            auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+                device,
+                DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                1,
+                item.Size());
+            auto session = framePool.CreateCaptureSession(item);
+            Direct3D11CaptureFrame currentFrame{ nullptr };
+            auto frameEvent = wil::shared_event(wil::EventOptions::None);
+            framePool.FrameArrived([&currentFrame, frameEvent](auto& framePool, auto&)
+                {
+                    WINRT_ASSERT(!currentFrame);
+                    currentFrame = framePool.TryGetNextFrame();
+                    WINRT_ASSERT(!frameEvent.is_signaled());
+                    frameEvent.SetEvent();
+                });
+            session.StartCapture();
+            co_await winrt::resume_on_signal(frameEvent.get());
+
+            // Test for red
+            TestCenterOfSurface(device, currentFrame.Surface(), Colors::Red());
+
+            // Transition to fullscreen
+            window->Fullscreen(true);
+            window->Flip(Colors::Green());
+            // Wait for the transition
+            co_await std::chrono::milliseconds(500);
+
+            // Release the frame and get a new one
+            frameEvent.ResetEvent();
+            currentFrame.Close();
+            currentFrame = nullptr;
+            co_await winrt::resume_on_signal(frameEvent.get());
+
+            // Test for green
+            TestCenterOfSurface(device, currentFrame.Surface(), Colors::Green());
+
+            // Transition to windowed
+            window->Fullscreen(false);
+            window->Flip(Colors::Blue());
+            // Wait for the transition
+            co_await std::chrono::milliseconds(500);
+
+            // Release the frame and get a new one
+            frameEvent.ResetEvent();
+            currentFrame.Close();
+            currentFrame = nullptr;
+            co_await winrt::resume_on_signal(frameEvent.get());
+
+            // Test for blue
+            TestCenterOfSurface(device, currentFrame.Surface(), Colors::Blue());
+        }
     }
     catch (hresult_error const& error)
     {
-        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        wprintf(L"Fullscreen Transition test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
         co_return false;
     }
 
@@ -374,7 +446,7 @@ IAsyncAction MainAsync(CommandOptions options)
     break;
     case Commands::FullscreenTransition:
     {
-        auto transitionPassed = co_await FullscreenTransitionTest(compositorController, device, compositorThread);
+        auto transitionPassed = co_await FullscreenTransitionTest(compositorController, device, compositorThread, options.transitionTestMode);
     }
     break;
     case Commands::WindowRate:
@@ -410,7 +482,19 @@ bool TryParseCommandOptions(wcliparse::Matches<Commands>& matches, CommandOption
 
         options.fullscreenMode = setFullscreenState ? FullscreenMode::SetFullscreenState : FullscreenMode::FullscreenWindow;
     }
-        break;
+    break;
+    case Commands::FullscreenTransition:
+    {
+        auto adHocMode = matches.IsPresent(L"--adhoc");
+        auto automatedMode = matches.IsPresent(L"--automated");
+        if (adHocMode == automatedMode)
+        {
+            return false;
+        }
+
+        options.transitionTestMode = adHocMode ? FullscreenTransitionTestMode::AdHoc : FullscreenTransitionTestMode::Automated;
+    }
+    break;
     case Commands::WindowRate:
     {
         options.windowTitle = matches.ValueOf(L"--window");
@@ -427,7 +511,7 @@ bool TryParseCommandOptions(wcliparse::Matches<Commands>& matches, CommandOption
             options.durationInSeconds = std::stoi(durationString);
         }
     }
-        break;
+    break;
     }
 
     return true;
@@ -450,7 +534,11 @@ int wmain(int argc, wchar_t* argv[])
                 .Alias(L"-sfs"))
             .Argument(wcliparse::Argument(L"--fullscreenwindow")
                 .Alias(L"-fw")))
-        .Command(wcliparse::Command(L"fullscreen-transition", Commands::FullscreenTransition))
+        .Command(wcliparse::Command(L"fullscreen-transition", Commands::FullscreenTransition)
+            .Argument(wcliparse::Argument(L"--adhoc")
+                .Alias(L"-ah"))
+            .Argument(wcliparse::Argument(L"--automated")
+                .Alias(L"-auto")))
         .Command(wcliparse::Command(L"window-rate", Commands::WindowRate)
             .Argument(wcliparse::Argument(L"--window")
                 .Required(true)

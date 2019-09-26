@@ -18,10 +18,11 @@ void FullscreenTransitionWindow::RegisterWindowClass()
     winrt::check_bool(RegisterClassExW(&wcex));
 }
 
-FullscreenTransitionWindow::FullscreenTransitionWindow()
+FullscreenTransitionWindow::FullscreenTransitionWindow(FullscreenTransitionTestMode mode)
 {
     auto instance = winrt::check_pointer(GetModuleHandleW(nullptr));
     m_windowClosed = wil::shared_event(wil::EventOptions::None);
+    m_mode = mode;
 
     winrt::check_bool(CreateWindowW(ClassName.c_str(), L"FullscreenTransitionWindow", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, instance, this));
@@ -78,11 +79,12 @@ void FullscreenTransitionWindow::Fullscreen(bool isFullscreen)
     }
     else
     {
-        winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
         RECT rect = {};
         winrt::check_bool(GetWindowRect(m_window, &rect));
         auto width = rect.right - rect.left;
         auto height = rect.bottom - rect.top;
+
+        winrt::check_hresult(m_swapChain->SetFullscreenState(false, nullptr));
         winrt::check_hresult(m_swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 0));
     }
 
@@ -90,15 +92,21 @@ void FullscreenTransitionWindow::Fullscreen(bool isFullscreen)
     winrt::com_ptr<ID3D11Texture2D> backBuffer;
     winrt::check_hresult(m_swapChain->GetBuffer(0, winrt::guid_of<ID3D11Texture2D>(), backBuffer.put_void()));
     winrt::check_hresult(m_d3dDevice->CreateRenderTargetView(backBuffer.get(), nullptr, m_renderTargetView.put()));
-
-    // TODO: remove
-    Flip();
 }
 
 void FullscreenTransitionWindow::Flip()
 {
     float color[4] = { 1.0f, 0.0f, 0.0f, 1.0f }; // RGBA
     m_d3dContext->ClearRenderTargetView(m_renderTargetView.get(), color);
+
+    DXGI_PRESENT_PARAMETERS presentParameters{};
+    winrt::check_hresult(m_swapChain->Present1(0, 0, &presentParameters));
+}
+
+void FullscreenTransitionWindow::Flip(winrt::Windows::UI::Color color)
+{
+    float colorf[4] = { color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f }; // RGBA
+    m_d3dContext->ClearRenderTargetView(m_renderTargetView.get(), colorf);
 
     DXGI_PRESENT_PARAMETERS presentParameters{};
     winrt::check_hresult(m_swapChain->Present1(0, 0, &presentParameters));
@@ -122,7 +130,11 @@ LRESULT FullscreenTransitionWindow::MessageHandler(UINT const message, WPARAM co
         }
         break;
     case WM_LBUTTONDBLCLK:
-        Fullscreen(!m_fullscreen);
+        if (m_mode == FullscreenTransitionTestMode::AdHoc)
+        {
+            Fullscreen(!m_fullscreen);
+            Flip();
+        }
         break;
     }
 
