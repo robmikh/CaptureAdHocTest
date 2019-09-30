@@ -2,6 +2,7 @@
 #include "CaptureSnapshot.h"
 #include "FullscreenMaxRateWindow.h"
 #include "FullscreenTransitionWindow.h"
+#include "HDRContentWindow.h"
 #include "wcliparse.h"
 
 using namespace winrt;
@@ -164,6 +165,7 @@ enum class Commands
     FullscreenRate,
     FullscreenTransition,
     WindowRate,
+    HDRContent,
     PCInfo,
     Help
 };
@@ -452,6 +454,29 @@ IAsyncOperation<bool> WindowRenderRateTest(
     co_return true;
 }
 
+IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, com_ptr<ID2D1Device> const& d2dDevice)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    try
+    {
+        // Create the window on the compositor thread to borrow the message pump
+        auto window = co_await CreateSharedOnThreadAsync<HDRContentWindow>(compositorThreadQueue, compositor, d2dDevice);
+        compositorController.Commit();
+        co_await winrt::resume_on_signal(window->Closed().get());
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"HDR Content test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -504,6 +529,11 @@ IAsyncAction MainAsync(CommandOptions options)
     case Commands::FullscreenTransition:
     {
         auto transitionPassed = co_await FullscreenTransitionTest(compositorController, device, compositorThread, options.transitionTestMode);
+    }
+    break;
+    case Commands::HDRContent:
+    {
+        auto hdrPassed = co_await HDRContentTest(compositorController, device, compositorThread, d2dDevice);
     }
     break;
     case Commands::WindowRate:
@@ -580,6 +610,7 @@ int wmain(int argc, wchar_t* argv[])
 
     FullscreenMaxRateWindow::RegisterWindowClass();
     FullscreenTransitionWindow::RegisterWindowClass();
+    HDRContentWindow::RegisterWindowClass();
 
     auto app = wcliparse::Application<Commands>(L"CaptureAdHocTest")
         .Version(L"0.1.0")
@@ -608,6 +639,7 @@ int wmain(int argc, wchar_t* argv[])
                 .Description(L"duration in seconds")
                 .TakesValue(true)
                 .DefaultValue(L"10")))
+        .Command(wcliparse::Command(L"hdr-content", Commands::HDRContent))
         .Command(wcliparse::Command(L"pc-info", Commands::PCInfo));
 
     CommandOptions options;

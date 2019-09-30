@@ -10,6 +10,7 @@
     <ClCompile Include="CaptureSnapshot.cpp" />
     <ClCompile Include="FullscreenMaxRateWindow.cpp" />
     <ClCompile Include="FullscreenTransitionWindow.cpp" />
+    <ClCompile Include="HDRContentWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -24,5 +25,8 @@
     <ClInclude Include="FullscreenMaxRateWindow.h" />
     <ClInclude Include="wcliparse.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="HDRContentWindow.h" />
+    <ClInclude Include="composition.interop.h" />
+    <ClInclude Include="dispatcherqueue.interop.h" />
   </ItemGroup>
 </Project>

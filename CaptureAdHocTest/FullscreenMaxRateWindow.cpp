@@ -3,9 +3,7 @@
 
 void FullscreenMaxRateWindow::RegisterWindowClass()
 {
-    auto instance = GetModuleHandleW(nullptr);
-    winrt::check_bool(instance);
-
+    auto instance = winrt::check_pointer(GetModuleHandleW(nullptr));
     WNDCLASSEX wcex = { sizeof(wcex) };
     wcex.style = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc = WndProc;
@@ -20,8 +18,7 @@ void FullscreenMaxRateWindow::RegisterWindowClass()
 
 FullscreenMaxRateWindow::FullscreenMaxRateWindow(FullscreenMode mode) 
 {
-    auto instance = GetModuleHandleW(nullptr);
-    winrt::check_bool(instance);
+    auto instance = winrt::check_pointer(GetModuleHandleW(nullptr));
 
     winrt::check_bool(CreateWindowW(L"FullscreenMaxRateWindow", L"FullscreenMaxRateWindow", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, instance, this));
