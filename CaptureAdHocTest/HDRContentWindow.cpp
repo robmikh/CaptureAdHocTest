@@ -50,7 +50,12 @@ HDRContentWindow::HDRContentWindow(winrt::Compositor const& compositor, winrt::c
         SurfaceContext surfaceContext(surface);
         auto d2dContext = surfaceContext.GetDeviceContext();
 
-        d2dContext->Clear(D2D1::ColorF(D2D1::ColorF::Yellow, 1.0f));
+		auto color = D2D1::ColorF(D2D1::ColorF::Yellow, 1.0f);
+		auto boostValue = 3.0f;
+		color.r *= boostValue;
+		color.g *= boostValue;
+		color.b *= boostValue;
+        d2dContext->Clear(color);
     }
     
     auto visual = m_compositor.CreateSpriteVisual();
