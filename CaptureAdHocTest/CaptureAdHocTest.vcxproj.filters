@@ -11,6 +11,7 @@
     <ClCompile Include="FullscreenMaxRateWindow.cpp" />
     <ClCompile Include="DummyWindow.cpp" />
     <ClCompile Include="FullscreenTransitionWindow.cpp" />
+    <ClCompile Include="HDRContentWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -28,5 +29,7 @@
     <ClInclude Include="wcliparse.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
     <ClInclude Include="testutils.h" />
+    <ClInclude Include="HDRContentWindow.h" />
+    <ClInclude Include="dispatcherqueue.interop.h" />
   </ItemGroup>
 </Project>
