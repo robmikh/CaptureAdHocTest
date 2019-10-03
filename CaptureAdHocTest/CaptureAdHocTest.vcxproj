@@ -9,7 +9,7 @@
     <ProjectGuid>{bc9d36e6-a4db-4b92-9745-6343f5b345eb}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>CaptureAdHocTest</RootNamespace>
-    <WindowsTargetPlatformVersion Condition=" '$(WindowsTargetPlatformVersion)' == '' ">10.0.18965.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion Condition=" '$(WindowsTargetPlatformVersion)' == '' ">10.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformMinVersion>10.0.17134.0</WindowsTargetPlatformMinVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
