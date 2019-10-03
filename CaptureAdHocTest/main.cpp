@@ -3,7 +3,6 @@
 #include "FullscreenMaxRateWindow.h"
 #include "DummyWindow.h"
 #include "FullscreenTransitionWindow.h"
-#include "HDRContentWindow.h"
 #include "wcliparse.h"
 #include "testutils.h"
 
@@ -583,7 +582,34 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
     try
     {
         // Create the window on the compositor thread to borrow the message pump
-        auto window = co_await CreateSharedOnThreadAsync<HDRContentWindow>(compositorThreadQueue, compositor, d2dDevice);
+        auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, L"HDR Content");
+
+		auto compositionGraphics = CreateCompositionGraphicsDevice(compositor, d2dDevice.get());
+		auto surface = compositionGraphics.CreateDrawingSurface(
+			{ 800, 600 }, DirectXPixelFormat::R16G16B16A16Float, DirectXAlphaMode::Premultiplied);
+
+		{
+			SurfaceContext surfaceContext(surface);
+			auto d2dContext = surfaceContext.GetDeviceContext();
+
+			auto color = D2D1::ColorF(D2D1::ColorF::Yellow, 1.0f);
+			auto boostValue = 3.0f;
+			color.r *= boostValue;
+			color.g *= boostValue;
+			color.b *= boostValue;
+			d2dContext->Clear(color);
+		}
+
+		auto brush = compositor.CreateSurfaceBrush(surface);
+		brush.Stretch(CompositionStretch::Fill);
+
+		auto visual = compositor.CreateSpriteVisual();
+		visual.RelativeSizeAdjustment({ 1, 1 });
+		visual.Brush(brush);
+
+		auto target = window->CreateWindowTarget(compositor);
+		target.Root(visual);
+
         compositorController.Commit();
         co_await winrt::resume_on_signal(window->Closed().get());
     }
@@ -748,7 +774,6 @@ int wmain(int argc, wchar_t* argv[])
     FullscreenMaxRateWindow::RegisterWindowClass();
     DummyWindow::RegisterWindowClass();
     FullscreenTransitionWindow::RegisterWindowClass();
-    HDRContentWindow::RegisterWindowClass();
 
     auto app = wcliparse::Application<Commands>(L"CaptureAdHocTest")
         .Version(L"0.1.0")
