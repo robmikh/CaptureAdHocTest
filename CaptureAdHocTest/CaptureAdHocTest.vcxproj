@@ -114,6 +114,7 @@
     <ClInclude Include="capture.interop.h" />
     <ClInclude Include="CaptureSnapshot.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="testutils.h" />
     <ClInclude Include="wcliparse.h" />
     <ClInclude Include="completionSource.h" />
     <ClInclude Include="composition.interop.h" />

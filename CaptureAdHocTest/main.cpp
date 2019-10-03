@@ -4,6 +4,7 @@
 #include "DummyWindow.h"
 #include "FullscreenTransitionWindow.h"
 #include "wcliparse.h"
+#include "testutils.h"
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -15,22 +16,6 @@ using namespace Windows::System;
 using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 using namespace Windows::UI::Composition::Core;
-
-template<typename T>
-inline void check_color(T value, winrt::Windows::UI::Color const& expected)
-{
-    if (value != expected)
-    {
-        std::wstringstream stringStream;
-        stringStream << L"Color comparison failed!";
-        stringStream << std::endl;
-        stringStream << L"\tValue: ( B: " << value.B << L", G: " << value.G << ", R: " << value.R << ", A: " << value.A << " )";
-        stringStream << std::endl;
-        stringStream << L"\tExpected: ( B: " << expected.B << L", G: " << expected.G << ", R: " << expected.R << ", A: " << expected.A << " )";
-        stringStream << std::endl;
-        throw hresult_error(E_FAIL, stringStream.str());
-    }
-}
 
 template <typename T, typename ... Args>
 IAsyncOperation<T> CreateOnThreadAsync(DispatcherQueue const& threadQueue, Args ... args)
@@ -106,60 +91,6 @@ IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDire
 
     co_return file;
 }
-
-class MappedTexture
-{
-public:
-    struct BGRAPixel
-    {
-        BYTE B;
-        BYTE G;
-        BYTE R;
-        BYTE A;
-
-        bool operator==(const Color& color) { return B == color.B && G == color.G && R == color.R && A == color.A; }
-        bool operator!=(const Color& color) { return !(*this == color); }
-
-        winrt::Windows::UI::Color to_color() { return winrt::Windows::UI::Color{ A, R, G, B }; }
-    };
-
-    MappedTexture(com_ptr<ID3D11DeviceContext> d3dContext, com_ptr<ID3D11Texture2D> texture)
-    {
-        m_d3dContext = d3dContext;
-        m_texture = texture;
-        m_texture->GetDesc(&m_textureDesc);
-        check_hresult(m_d3dContext->Map(m_texture.get(), 0, D3D11_MAP_READ, 0, &m_mappedData));
-    }
-    ~MappedTexture()
-    {
-        m_d3dContext->Unmap(m_texture.get(), 0);
-    }
-
-    BGRAPixel ReadBGRAPixel(uint32_t x, uint32_t y)
-    {
-        if (x < m_textureDesc.Width && y < m_textureDesc.Height)
-        {
-            auto bytesPerPixel = 4;
-            auto data = static_cast<BYTE*>(m_mappedData.pData);
-            auto offset = (m_mappedData.RowPitch * y) + (x * bytesPerPixel);
-            auto B = data[offset + 0];
-            auto G = data[offset + 1];
-            auto R = data[offset + 2];
-            auto A = data[offset + 3];
-            return BGRAPixel{ B, G, R, A };
-        }
-        else
-        {
-            throw hresult_out_of_bounds();
-        }
-    }
-
-private:
-    com_ptr<ID3D11DeviceContext> m_d3dContext;
-    com_ptr<ID3D11Texture2D> m_texture;
-    D3D11_MAPPED_SUBRESOURCE m_mappedData = {};
-    D3D11_TEXTURE2D_DESC m_textureDesc = {};
-};
 
 enum class Commands
 {
@@ -307,19 +238,6 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
-void TestCenterOfSurface(IDirect3DDevice const& device, IDirect3DSurface const& surface, Color expectedColor)
-{
-    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
-    com_ptr<ID3D11DeviceContext> d3dContext;
-    d3dDevice->GetImmediateContext(d3dContext.put());
-
-    auto frameTexture = CopyD3DTexture(d3dDevice, GetDXGIInterfaceFromObject<ID3D11Texture2D>(surface), true);
-    D3D11_TEXTURE2D_DESC desc = {};
-    frameTexture->GetDesc(&desc);
-    auto mapped = MappedTexture(d3dContext, frameTexture);
-    check_color(mapped.ReadBGRAPixel(desc.Width / 2, desc.Height / 2), expectedColor);
-}
-
 IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, FullscreenTransitionTestMode mode)
 {
     auto compositor = compositorController.Compositor();
@@ -456,45 +374,6 @@ IAsyncOperation<bool> WindowRenderRateTest(
     }
 
     co_return true;
-}
-
-// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setsystemcursor
-enum class CursorType : DWORD
-{
-    Normal = 32512,
-    Wait = 32514,
-    AppStarting = 32650
-};
-
-struct CursorScope
-{
-    CursorScope(wil::shared_hcursor const& cursor, CursorType cursorType)
-    {
-        m_cursor.reset(CopyCursor(cursor.get()));
-        m_type = cursorType;
-
-        m_oldCursor.reset(CopyCursor(LoadCursorW(nullptr, MAKEINTRESOURCEW((DWORD)m_type))));
-
-        winrt::check_bool(SetSystemCursor(m_cursor.get(), (DWORD)m_type));
-    }
-
-    ~CursorScope()
-    {
-        winrt::check_bool(SetSystemCursor(m_oldCursor.get(), (DWORD)m_type));
-    }
-
-private:
-    wil::unique_hcursor m_cursor;
-    wil::unique_hcursor m_oldCursor;
-    CursorType m_type;
-};
-
-template <typename T>
-T CreateWin32Struct()
-{
-    T thing = {};
-    thing.cbSize = sizeof(T);
-    return thing;
 }
 
 auto PrepareWindowAndCursorForCenterTest(HWND window)
@@ -634,7 +513,7 @@ IAsyncOperation<bool> CursorDisableTest(
         d3dDevice->GetImmediateContext(d3dContext.put());
 
         // Create the window on the compositor thread to borrow the message pump
-        auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue);
+        auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, L"CursorDisableTest");
 
         // The window animation may still be going on when we do a capture, which screws
         // up our assumptions on what the different pixels should be. Wait a bit to 

@@ -27,5 +27,6 @@
     <ClInclude Include="composition.interop.h" />
     <ClInclude Include="wcliparse.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="testutils.h" />
   </ItemGroup>
 </Project>
