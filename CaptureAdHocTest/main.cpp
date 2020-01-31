@@ -769,6 +769,10 @@ bool TryParseCommandOptions(wcliparse::Matches<Commands>& matches, CommandOption
 
 int wmain(int argc, wchar_t* argv[])
 {
+    // NOTE: We don't properly scale any of the UI or properly respond to DPI changes, but none of 
+    //       the UI is meant to be interacted with. This is just so that the tests do the right thing
+    //       on high DPI machines.
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     init_apartment();
 
     FullscreenMaxRateWindow::RegisterWindowClass();
