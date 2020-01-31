@@ -100,6 +100,7 @@ enum class Commands
     WindowRate,
     CursorDisable,
     HDRContent,
+    AllMonitors,
     PCInfo,
     Help
 };
@@ -114,6 +115,7 @@ struct CommandOptions
     bool monitor = false;
     bool window = false;
     FullscreenTransitionTestMode transitionTestMode = FullscreenTransitionTestMode::AdHoc;
+    std::wstring path;
 };
 
 IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorController, IDirect3DDevice const& device)
@@ -622,6 +624,36 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
     co_return true;
 }
 
+IAsyncOperation<bool> AllMonitorsTest(IDirect3DDevice const& device)
+{
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    try
+    {
+        wprintf(L"Getting all monitors capture item...\n");
+        auto item = CreateCaptureItemForMonitor(nullptr);
+
+        wprintf(L"Capturing one frame...\n");
+        auto frame = co_await CaptureSnapshot::TakeAsync(device, item, false);
+
+        wprintf(L"Saving screenshot...\n");
+        auto file = co_await SaveFrameAsync(device, frame, L"screenshot.png");
+
+        wprintf(L"Saved to ");
+        wprintf(file.Path().c_str());
+        wprintf(L"\n");
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"AllMonitors test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        return false;
+    }
+
+    return true;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -692,6 +724,11 @@ IAsyncAction MainAsync(CommandOptions options)
 	case Commands::CursorDisable:
     {
         auto cursorDisable = co_await CursorDisableTest(compositorController, device, compositorThread, options.monitor, options.window);
+    }
+    break;
+    case Commands::AllMonitors:
+    {
+        auto allMonitors = co_await AllMonitorsTest(device);
     }
     break;
     case Commands::PCInfo:
@@ -808,6 +845,7 @@ int wmain(int argc, wchar_t* argv[])
             .Argument(wcliparse::Argument(L"--window")
                 .Alias(L"-w")))
         .Command(wcliparse::Command(L"hdr-content", Commands::HDRContent))
+        .Command(wcliparse::Command(L"all-monitors", Commands::AllMonitors))
         .Command(wcliparse::Command(L"pc-info", Commands::PCInfo));
 
     CommandOptions options;
