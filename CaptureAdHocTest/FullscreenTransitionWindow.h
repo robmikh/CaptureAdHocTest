@@ -1,18 +1,13 @@
 #pragma once
 #include <robmikh.common/DesktopWindow.h>
-
-enum class FullscreenTransitionTestMode
-{
-    AdHoc,
-    Automated
-};
+#include "TestParams.h"
 
 struct FullscreenTransitionWindow : robmikh::common::desktop::DesktopWindow<FullscreenTransitionWindow>
 {
     static const std::wstring ClassName;
     static void RegisterWindowClass();
 
-    FullscreenTransitionWindow(FullscreenTransitionTestMode mode);
+    FullscreenTransitionWindow(testparams::FullscreenTransitionTestMode mode);
     ~FullscreenTransitionWindow();
 
     LRESULT MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam);
@@ -27,7 +22,7 @@ private:
     void CloseWindow() { m_windowClosed.SetEvent(); }
 
 private:
-    FullscreenTransitionTestMode m_mode;
+    testparams::FullscreenTransitionTestMode m_mode;
     winrt::com_ptr<ID3D11Device> m_d3dDevice;
     winrt::com_ptr<IDXGISwapChain1> m_swapChain;
     winrt::com_ptr<ID3D11DeviceContext> m_d3dContext;

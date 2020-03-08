@@ -209,11 +209,26 @@ namespace wcliparse
         std::wstring m_defaultValue;
     };
 
+    class Matches
+    {
+    public:
+        Matches(std::map<std::wstring, std::wstring> values) { m_values = values; }
+
+        bool IsPresent(std::wstring const& name) { return m_values.find(name) != m_values.end(); }
+        std::wstring ValueOf(std::wstring const& name) { return m_values[name]; }
+
+    private:
+        std::map<std::wstring, std::wstring> m_values;
+    };
+
     template <typename CommandValueT>
     class Command
     {
     public:
+        using InputValidator = std::function<CommandValueT(Matches&)>;
+
         Command(std::wstring const& name, CommandValueT value) { m_name = name; m_value = value; }
+        Command(std::wstring const& name, InputValidator validator) { m_name = name; m_validator = validator; }
 
         Command& Argument(Argument argument) { m_arguments.push_back(argument); return *this; }
 
@@ -221,26 +236,13 @@ namespace wcliparse
         std::wstring Name() { return m_name; }
         CommandValueT Value() { return m_value; }
         std::vector<wcliparse::Argument> Arguments() { return m_arguments; }
+        std::optional<InputValidator> Validator() { return m_validator; }
 
     private:
         std::wstring m_name;
         CommandValueT m_value;
         std::vector<wcliparse::Argument> m_arguments;
-    };
-
-    template <typename CommandValueT>
-    class Matches
-    {
-    public:
-        Matches(CommandValueT command, std::map<std::wstring, std::wstring> values) { m_command = command; m_values = values; }
-
-        CommandValueT Command() { return m_command; }
-        bool IsPresent(std::wstring const& name) { return m_values.find(name) != m_values.end(); }
-        std::wstring ValueOf(std::wstring const& name) { return m_values[name]; }
-
-    private:
-        CommandValueT m_command;
-        std::map<std::wstring, std::wstring> m_values;
+        std::optional<InputValidator> m_validator{ std::nullopt };
     };
 
     template <typename CommandValueT>
@@ -255,7 +257,7 @@ namespace wcliparse
 
         Application& Command(Command<CommandValueT> command) { m_commands.push_back(command); return *this; }
 
-        Matches<CommandValueT> Parse(int argc, wchar_t* argv[])
+        CommandValueT Parse(int argc, wchar_t* argv[])
         {
             std::vector<std::wstring> args(argv + 1, argv + argc);
 
@@ -302,7 +304,16 @@ namespace wcliparse
                             values.insert({ name, value });
                         }
                     }
-                    return Matches<CommandValueT>(command.Value(), values);
+
+                    if (auto validator = command.Validator())
+                    {
+                        Matches matches(values);
+                        return validator->operator()(matches);
+                    }
+                    else
+                    {
+                        return command.Value();
+                    }
                 }
             }
 

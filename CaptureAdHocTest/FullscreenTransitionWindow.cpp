@@ -7,6 +7,8 @@ namespace util
     using namespace robmikh::common::uwp;
 }
 
+using namespace testparams;
+
 const std::wstring FullscreenTransitionWindow::ClassName = L"FullscreenTransitionWindow";
 
 void FullscreenTransitionWindow::RegisterWindowClass()

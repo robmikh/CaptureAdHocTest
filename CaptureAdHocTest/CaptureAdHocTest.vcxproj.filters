@@ -22,5 +22,7 @@
     <ClInclude Include="wcliparse.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
     <ClInclude Include="testutils.h" />
+    <ClInclude Include="AdHocTestCliParser.h" />
+    <ClInclude Include="TestParams.h" />
   </ItemGroup>
 </Project>

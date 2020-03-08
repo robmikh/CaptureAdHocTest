@@ -1,18 +1,13 @@
 #pragma once
 #include <robmikh.common/DesktopWindow.h>
-
-enum class FullscreenMode
-{
-    SetFullscreenState,
-    FullscreenWindow
-};
+#include "TestParams.h"
 
 struct FullscreenMaxRateWindow : robmikh::common::desktop::DesktopWindow<FullscreenMaxRateWindow>
 {
     static const std::wstring ClassName;
     static void RegisterWindowClass();
 
-    FullscreenMaxRateWindow(FullscreenMode mode);
+    FullscreenMaxRateWindow(testparams::FullscreenMode mode);
     ~FullscreenMaxRateWindow();
 
     LRESULT MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam);

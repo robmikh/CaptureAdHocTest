@@ -31,6 +31,8 @@
 #include <string>
 #include <iostream>
 #include <future>
+#include <variant>
+#include <functional>
 
 // WIL
 #include <wil/resource.h>

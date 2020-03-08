@@ -125,8 +125,10 @@
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AdHocTestCliParser.h" />
     <ClInclude Include="CaptureSnapshot.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="TestParams.h" />
     <ClInclude Include="testutils.h" />
     <ClInclude Include="wcliparse.h" />
     <ClInclude Include="completionSource.h" />

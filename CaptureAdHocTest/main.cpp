@@ -5,6 +5,7 @@
 #include "FullscreenTransitionWindow.h"
 #include "wcliparse.h"
 #include "testutils.h"
+#include "AdHocTestCliParser.h"
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -50,6 +51,9 @@ std::future<std::shared_ptr<T>> CreateSharedOnThreadAsync(DispatcherQueue const&
     co_await winrt::resume_on_signal(initialized.get());
     co_return thing;
 }
+
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 
 IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDirect3DSurface const& surface, std::wstring const& fileName)
 {
@@ -98,30 +102,6 @@ IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDire
     co_return file;
 }
 
-enum class Commands
-{
-    Alpha,
-    FullscreenRate,
-    FullscreenTransition,
-    WindowRate,
-    CursorDisable,
-    HDRContent,
-    PCInfo,
-    Help
-};
-
-struct CommandOptions
-{
-    Commands selected = Commands::Help;
-    FullscreenMode fullscreenMode = FullscreenMode::SetFullscreenState;
-    std::wstring windowTitle;
-    int delayInSeconds = 0;
-    int durationInSeconds = 10;
-    bool monitor = false;
-    bool window = false;
-    FullscreenTransitionTestMode transitionTestMode = FullscreenTransitionTestMode::AdHoc;
-};
-
 IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorController, IDirect3DDevice const& device)
 {
     auto compositor = compositorController.Compositor();
@@ -164,7 +144,7 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
     }
     catch (hresult_error const& error)
     {
-        wprintf(L"Transparency test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        wprintf(L"Transparency test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
         success = false;
     }
 
@@ -177,7 +157,7 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
     co_return success;
 }
 
-IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, FullscreenMode mode)
+IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::FullscreenMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -238,14 +218,14 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     }
     catch (hresult_error const& error)
     {
-        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
         co_return false;
     }
 
     co_return true;
 }
 
-IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, FullscreenTransitionTestMode mode)
+IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::FullscreenTransitionTestMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -258,7 +238,7 @@ IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compo
         auto window = co_await CreateSharedOnThreadAsync<FullscreenTransitionWindow>(compositorThreadQueue, mode);
         window->Flip(Colors::Red());
 
-        if (mode == FullscreenTransitionTestMode::AdHoc)
+        if (mode == testparams::FullscreenTransitionTestMode::AdHoc)
         {
             co_await winrt::resume_on_signal(window->Closed().get());
         }
@@ -320,7 +300,7 @@ IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compo
     }
     catch (hresult_error const& error)
     {
-        wprintf(L"Fullscreen Transition test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        wprintf(L"Fullscreen Transition test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
         co_return false;
     }
 
@@ -376,7 +356,7 @@ IAsyncOperation<bool> WindowRenderRateTest(
     }
     catch (hresult_error const& error)
     {
-        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        wprintf(L"Render rate test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
         co_return false;
     }
 
@@ -489,7 +469,7 @@ IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDi
     {
         auto typeString = RemoteCaptureTypeToString(captureType);
         std::wstring cursorStateString(cursorEnabled ? L"Enabled" : L"Disabled");
-        wprintf(L"Cursor disabled test (%s-%s) failed! 0x%08x - %s \n", typeString.c_str(), cursorStateString.c_str(), error.code(), error.message().c_str());
+        wprintf(L"Cursor disabled test (%s-%s) failed! 0x%08x - %s \n", typeString.c_str(), cursorStateString.c_str(), error.code().value, error.message().c_str());
         std::wstringstream stringStream;
         stringStream << L"cursor-disable_" << typeString.c_str() << L"_" << cursorStateString.c_str() << L"_failure.png";
         failureFileName = stringStream.str();
@@ -520,7 +500,7 @@ IAsyncOperation<bool> CursorDisableTest(
         d3dDevice->GetImmediateContext(d3dContext.put());
 
         // Create the window on the compositor thread to borrow the message pump
-        auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, L"CursorDisableTest");
+        auto testWindow = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, L"CursorDisableTest");
 
         // The window animation may still be going on when we do a capture, which screws
         // up our assumptions on what the different pixels should be. Wait a bit to 
@@ -528,7 +508,7 @@ IAsyncOperation<bool> CursorDisableTest(
         co_await std::chrono::milliseconds(250);
 
         // Setup a visual tree to make the window red
-        auto target = window->CreateWindowTarget(compositor);
+        auto target = testWindow->CreateWindowTarget(compositor);
         auto root = compositor.CreateSpriteVisual();
         root.RelativeSizeAdjustment({ 1, 1 });
         root.Brush(compositor.CreateColorBrush(Colors::Red()));
@@ -554,21 +534,21 @@ IAsyncOperation<bool> CursorDisableTest(
 
                 if (monitor)
                 {
-                    co_await TestCenterOfWindowAsync(RemoteCaptureType::Monitor, device, window->m_window, windowColor, cursorColor);
+                    co_await TestCenterOfWindowAsync(RemoteCaptureType::Monitor, device, testWindow->m_window, windowColor, cursorColor);
                 }
                 if (window)
                 {
-                    co_await TestCenterOfWindowAsync(RemoteCaptureType::Window, device, window->m_window, windowColor, cursorColor);
+                    co_await TestCenterOfWindowAsync(RemoteCaptureType::Window, device, testWindow->m_window, windowColor, cursorColor);
                 }
             }
             catch (hresult_error const& error)
             {
-                wprintf(L"Cursor disabled test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+                wprintf(L"Cursor disabled test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
                 co_return false;
             }
         }
           
-        CloseWindow(window->m_window);
+        CloseWindow(testWindow->m_window);
         co_return true;
     }
     else
@@ -621,7 +601,7 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
     }
     catch (hresult_error const& error)
     {
-        wprintf(L"HDR Content test failed! 0x%08x - %s \n", error.code(), error.message().c_str());
+        wprintf(L"HDR Content test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
         co_return false;
     }
 
@@ -642,7 +622,7 @@ std::wstring GetBuildString()
     return buildString;
 }
 
-IAsyncAction MainAsync(CommandOptions options)
+IAsyncAction MainAsync(testparams::TestParams params)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
     // we can't use our current thread. Create a new one that is controlled by the dispatcher.
@@ -665,112 +645,17 @@ IAsyncAction MainAsync(CommandOptions options)
     check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
 
     // Tests
-    switch (options.selected)
+    auto success = std::visit(overloaded
     {
-    case Commands::Alpha:
-    {
-        auto transparencyPassed = co_await TransparencyTest(compositorController, device);
-    }
-    break;
-    case Commands::FullscreenRate:
-    {
-        auto renderRatePassed = co_await RenderRateTest(compositorController, device, compositorThread, options.fullscreenMode);
-    }
-    break;
-    case Commands::FullscreenTransition:
-    {
-        auto transitionPassed = co_await FullscreenTransitionTest(compositorController, device, compositorThread, options.transitionTestMode);
-    }
-    break;
-    case Commands::HDRContent:
-    {
-        auto hdrPassed = co_await HDRContentTest(compositorController, device, compositorThread, d2dDevice);
-    }
-    break;
-    case Commands::WindowRate:
-    {
-        auto delay = std::chrono::seconds(options.delayInSeconds);
-        auto duration = std::chrono::seconds(options.durationInSeconds);
-
-        auto renderRatePassed = co_await WindowRenderRateTest(compositorController, device, options.windowTitle, delay, duration);
-    }
-    break;
-	case Commands::CursorDisable:
-    {
-        auto cursorDisable = co_await CursorDisableTest(compositorController, device, compositorThread, options.monitor, options.window);
-    }
-    break;
-    case Commands::PCInfo:
-    {
-        auto buildString = GetBuildString();
-        wprintf(L"PC info: %s\n", buildString.c_str());
-    }
-    break;
-    }
-}
-
-bool TryParseCommandOptions(wcliparse::Matches<Commands>& matches, CommandOptions& options)
-{
-    options.selected = matches.Command();
-    switch (options.selected)
-    {
-    case Commands::FullscreenRate:
-    {
-        auto setFullscreenState = matches.IsPresent(L"--setfullscreenstate");
-        auto fullscreenWindow = matches.IsPresent(L"--fullscreenwindow");
-        if (setFullscreenState == fullscreenWindow)
-        {
-            return false;
-        }
-
-        options.fullscreenMode = setFullscreenState ? FullscreenMode::SetFullscreenState : FullscreenMode::FullscreenWindow;
-    }
-    break;
-    case Commands::FullscreenTransition:
-    {
-        auto adHocMode = matches.IsPresent(L"--adhoc");
-        auto automatedMode = matches.IsPresent(L"--automated");
-        if (adHocMode == automatedMode)
-        {
-            return false;
-        }
-
-        options.transitionTestMode = adHocMode ? FullscreenTransitionTestMode::AdHoc : FullscreenTransitionTestMode::Automated;
-    }
-    break;
-    case Commands::WindowRate:
-    {
-        options.windowTitle = matches.ValueOf(L"--window");
-
-        if (matches.IsPresent(L"--delay"))
-        {
-            auto delayString = matches.ValueOf(L"--delay");
-            options.delayInSeconds = std::stoi(delayString);
-        }
-
-        if (matches.IsPresent(L"--duration"))
-        {
-            auto durationString = matches.ValueOf(L"--duration");
-            options.durationInSeconds = std::stoi(durationString);
-        }
-    }
-    break;
-    case Commands::CursorDisable:
-    {
-        auto monitor = matches.IsPresent(L"--monitor");
-        auto window = matches.IsPresent(L"--window");
-        if (!monitor && !window)
-        {
-            return false;
-        }
-
-        options.monitor = monitor;
-        options.window = window;
-    }
-    break;
-    }
-
-    return true;
+        [=](testparams::Alpha const&) -> bool { return TransparencyTest(compositorController, device).get(); },
+        [=](testparams::FullscreenRate const& args) -> bool { return RenderRateTest(compositorController, device, compositorThread, args.FullscreenMode).get(); },
+        [=](testparams::FullscreenTransition const& args) -> bool { return FullscreenTransitionTest(compositorController, device, compositorThread, args.TransitionMode).get(); },
+        [=](testparams::HDRContent const&) -> bool { return HDRContentTest(compositorController, device, compositorThread, d2dDevice).get(); },
+        [=](testparams::WindowRate const& args) -> bool { return WindowRenderRateTest(compositorController, device, args.WindowTitle, args.Delay, args.Duration).get(); },
+        [=](testparams::CursorDisable const& args) -> bool { return CursorDisableTest(compositorController, device, compositorThread, args.Monitor, args.Window).get(); },
+        [=](testparams::PCInfo const&) -> bool { auto buildString = GetBuildString(); wprintf(L"PC info: %s\n", buildString.c_str()); return true;  },
+        [=](std::monostate const&) -> bool { throw std::runtime_error("Invalid test params!"); },
+    }, params);
 }
 
 int wmain(int argc, wchar_t* argv[])
@@ -785,22 +670,22 @@ int wmain(int argc, wchar_t* argv[])
     DummyWindow::RegisterWindowClass();
     FullscreenTransitionWindow::RegisterWindowClass();
 
-    auto app = wcliparse::Application<Commands>(L"CaptureAdHocTest")
-        .Version(L"0.1.0")
+    auto app = wcliparse::Application<testparams::TestParams>(L"CaptureAdHocTest")
+        .Version(L"0.2.0")
         .Author(L"Robert Mikhayelyan (rob.mikh@outlook.com)")
         .About(L"A small utility to test various parts of the Windows.Graphics.Capture API.")
-        .Command(wcliparse::Command(L"alpha", Commands::Alpha))
-        .Command(wcliparse::Command(L"fullscreen-rate", Commands::FullscreenRate)
+        .Command(wcliparse::Command(L"alpha", testparams::TestParams(testparams::Alpha())))
+        .Command(wcliparse::Command(L"fullscreen-rate", std::function(AdHocTestCliValidator::ValidateFullscreenRate))
             .Argument(wcliparse::Argument(L"--setfullscreenstate")
                 .Alias(L"-sfs"))
             .Argument(wcliparse::Argument(L"--fullscreenwindow")
                 .Alias(L"-fw")))
-        .Command(wcliparse::Command(L"fullscreen-transition", Commands::FullscreenTransition)
+        .Command(wcliparse::Command(L"fullscreen-transition", std::function(AdHocTestCliValidator::ValidateFullscreenTransition))
             .Argument(wcliparse::Argument(L"--adhoc")
                 .Alias(L"-ah"))
             .Argument(wcliparse::Argument(L"--automated")
                 .Alias(L"-auto")))
-        .Command(wcliparse::Command(L"window-rate", Commands::WindowRate)
+        .Command(wcliparse::Command(L"window-rate", std::function(AdHocTestCliValidator::ValidateWindowRate))
             .Argument(wcliparse::Argument(L"--window")
                 .Required(true)
                 .Description(L"window title string")
@@ -812,22 +697,18 @@ int wmain(int argc, wchar_t* argv[])
                 .Description(L"duration in seconds")
                 .TakesValue(true)
                 .DefaultValue(L"10")))
-        .Command(wcliparse::Command(L"cursor-disable", Commands::CursorDisable)
+        .Command(wcliparse::Command(L"cursor-disable", std::function(AdHocTestCliValidator::ValidateCursorDisable))
             .Argument(wcliparse::Argument(L"--monitor")
                 .Alias(L"-m"))
             .Argument(wcliparse::Argument(L"--window")
                 .Alias(L"-w")))
-        .Command(wcliparse::Command(L"hdr-content", Commands::HDRContent))
-        .Command(wcliparse::Command(L"pc-info", Commands::PCInfo));
+        .Command(wcliparse::Command(L"hdr-content", testparams::TestParams(testparams::HDRContent())))
+        .Command(wcliparse::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
 
-    CommandOptions options;
+    testparams::TestParams params;
     try
     {
-        auto matches = app.Parse(argc, argv);
-        if (!TryParseCommandOptions(matches, options))
-        {
-            throw std::runtime_error("Invalid input!");
-        }
+        params = app.Parse(argc, argv);
     }
     catch (std::runtime_error const&)
     {
@@ -835,6 +716,6 @@ int wmain(int argc, wchar_t* argv[])
         return 1;
     }
 
-    MainAsync(options).get();
+    MainAsync(params).get();
     return 0;
 }

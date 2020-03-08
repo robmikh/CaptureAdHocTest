@@ -7,6 +7,8 @@ namespace util
     using namespace robmikh::common::uwp;
 }
 
+using namespace testparams;
+
 const std::wstring FullscreenMaxRateWindow::ClassName = L"FullscreenMaxRateWindow";
 
 void FullscreenMaxRateWindow::RegisterWindowClass()
