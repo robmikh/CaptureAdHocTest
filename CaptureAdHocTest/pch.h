@@ -42,11 +42,14 @@
 #include <wincodec.h>
 
 // Helpers
-#include "composition.interop.h"
-#include "d3dHelpers.h"
-#include "direct3d11.interop.h"
-#include "capture.interop.h"
-#include "dispatcherqueue.interop.h"
-#include "stream.interop.h"
+#include <robmikh.common/composition.desktop.interop.h>
+#include <robmikh.common/composition.interop.h>
+#include <robmikh.common/d3dHelpers.h>
+#include <robmikh.common/d3dHelpers.desktop.h>
+#include <robmikh.common/direct3d11.interop.h>
+#include <robmikh.common/stream.interop.h>
+#include <robmikh.common/hwnd.interop.h>
+#include <robmikh.common/dispatcherqueue.desktop.interop.h>
+#include <robmikh.common/capture.desktop.interop.h>
 #include "completionSource.h"
 #include "FrameTimer.h"

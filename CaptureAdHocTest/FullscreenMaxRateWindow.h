@@ -1,5 +1,5 @@
 #pragma once
-#include "DesktopWindow.h"
+#include <robmikh.common/DesktopWindow.h>
 
 enum class FullscreenMode
 {
@@ -7,8 +7,9 @@ enum class FullscreenMode
     FullscreenWindow
 };
 
-struct FullscreenMaxRateWindow : DesktopWindow<FullscreenMaxRateWindow>
+struct FullscreenMaxRateWindow : robmikh::common::desktop::DesktopWindow<FullscreenMaxRateWindow>
 {
+    static const std::wstring ClassName;
     static void RegisterWindowClass();
 
     FullscreenMaxRateWindow(FullscreenMode mode);

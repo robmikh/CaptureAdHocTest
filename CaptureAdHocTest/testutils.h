@@ -79,7 +79,7 @@ void TestCenterOfSurface(
 	winrt::com_ptr<ID3D11DeviceContext> d3dContext;
 	d3dDevice->GetImmediateContext(d3dContext.put());
 
-	auto frameTexture = CopyD3DTexture(d3dDevice, GetDXGIInterfaceFromObject<ID3D11Texture2D>(surface), true);
+	auto frameTexture = robmikh::common::uwp::CopyD3DTexture(d3dDevice, GetDXGIInterfaceFromObject<ID3D11Texture2D>(surface), true);
 	D3D11_TEXTURE2D_DESC desc = {};
 	frameTexture->GetDesc(&desc);
 	auto mapped = MappedTexture(d3dContext, frameTexture);

@@ -1,6 +1,12 @@
 #include "pch.h"
 #include "FullscreenTransitionWindow.h"
 
+namespace util
+{
+    using namespace robmikh::common::desktop;
+    using namespace robmikh::common::uwp;
+}
+
 const std::wstring FullscreenTransitionWindow::ClassName = L"FullscreenTransitionWindow";
 
 void FullscreenTransitionWindow::RegisterWindowClass()
@@ -31,9 +37,9 @@ FullscreenTransitionWindow::FullscreenTransitionWindow(FullscreenTransitionTestM
     ShowWindow(m_window, SW_SHOWDEFAULT);
     UpdateWindow(m_window);
 
-    m_d3dDevice = CreateD3DDevice();
+    m_d3dDevice = util::CreateD3DDevice();
     m_d3dDevice->GetImmediateContext(m_d3dContext.put());
-    m_swapChain = CreateDXGISwapChainForWindow(m_d3dDevice, 800, 600, DXGI_FORMAT_B8G8R8A8_UNORM, 2, m_window);
+    m_swapChain = util::CreateDXGISwapChainForWindow(m_d3dDevice, 800, 600, DXGI_FORMAT_B8G8R8A8_UNORM, 2, m_window);
 
     // Get the back buffer so we can clear it
     winrt::com_ptr<ID3D11Texture2D> backBuffer;

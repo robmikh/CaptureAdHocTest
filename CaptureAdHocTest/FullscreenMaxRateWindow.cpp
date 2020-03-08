@@ -1,6 +1,14 @@
 #include "pch.h"
 #include "FullscreenMaxRateWindow.h"
 
+namespace util
+{
+    using namespace robmikh::common::desktop;
+    using namespace robmikh::common::uwp;
+}
+
+const std::wstring FullscreenMaxRateWindow::ClassName = L"FullscreenMaxRateWindow";
+
 void FullscreenMaxRateWindow::RegisterWindowClass()
 {
     auto instance = winrt::check_pointer(GetModuleHandleW(nullptr));
@@ -11,7 +19,7 @@ void FullscreenMaxRateWindow::RegisterWindowClass()
     wcex.hIcon = LoadIconW(instance, IDI_APPLICATION);
     wcex.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wcex.lpszClassName = L"FullscreenMaxRateWindow";
+    wcex.lpszClassName = ClassName.c_str();
     wcex.hIconSm = LoadIconW(wcex.hInstance, IDI_APPLICATION);
     winrt::check_bool(RegisterClassExW(&wcex));
 }
@@ -20,16 +28,16 @@ FullscreenMaxRateWindow::FullscreenMaxRateWindow(FullscreenMode mode)
 {
     auto instance = winrt::check_pointer(GetModuleHandleW(nullptr));
 
-    winrt::check_bool(CreateWindowW(L"FullscreenMaxRateWindow", L"FullscreenMaxRateWindow", WS_OVERLAPPEDWINDOW,
+    winrt::check_bool(CreateWindowW(ClassName.c_str(), L"FullscreenMaxRateWindow", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, instance, this));
     WINRT_ASSERT(m_window);
 
     ShowWindow(m_window, SW_SHOWDEFAULT);
     UpdateWindow(m_window);
 
-    m_d3dDevice = CreateD3DDevice();
+    m_d3dDevice = util::CreateD3DDevice();
     m_d3dDevice->GetImmediateContext(m_d3dContext.put());
-    m_swapChain = CreateDXGISwapChainForWindow(m_d3dDevice, 800, 600, DXGI_FORMAT_B8G8R8A8_UNORM, 2, m_window);
+    m_swapChain = util::CreateDXGISwapChainForWindow(m_d3dDevice, 800, 600, DXGI_FORMAT_B8G8R8A8_UNORM, 2, m_window);
 
     // Get the adapter from our d3d device
     auto dxgiDevice = m_d3dDevice.as<IDXGIDevice>();

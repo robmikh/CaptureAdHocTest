@@ -14,6 +14,11 @@ using namespace Windows::Foundation::Numerics;
 using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 
+namespace util
+{
+    using namespace robmikh::common::uwp;
+}
+
 IAsyncOperation<IDirect3DSurface>
 CaptureSnapshot::TakeAsync(IDirect3DDevice const& device, GraphicsCaptureItem const& item, bool asStagingTexture, bool cursorEnabled)
 {
@@ -43,7 +48,7 @@ CaptureSnapshot::TakeAsync(IDirect3DDevice const& device, GraphicsCaptureItem co
         auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 
         // Make a copy of the texture
-        auto textureCopy = CopyD3DTexture(d3dDevice, frameTexture, asStagingTexture);
+        auto textureCopy = util::CopyD3DTexture(d3dDevice, frameTexture, asStagingTexture);
 
         auto dxgiSurface = textureCopy.as<IDXGISurface>();
         auto result = CreateDirect3DSurface(dxgiSurface.get());

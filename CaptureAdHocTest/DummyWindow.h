@@ -1,7 +1,7 @@
 #pragma once
-#include "DesktopWindow.h"
+#include <robmikh.common/DesktopWindow.h>
 
-struct DummyWindow : DesktopWindow<DummyWindow>
+struct DummyWindow : robmikh::common::desktop::DesktopWindow<DummyWindow>
 {
 	static const std::wstring ClassName;
     static void RegisterWindowClass();

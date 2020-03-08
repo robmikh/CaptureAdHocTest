@@ -17,6 +17,12 @@ using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 using namespace Windows::UI::Composition::Core;
 
+namespace util
+{
+    using namespace robmikh::common::desktop;
+    using namespace robmikh::common::uwp;
+}
+
 template <typename T, typename ... Args>
 IAsyncOperation<T> CreateOnThreadAsync(DispatcherQueue const& threadQueue, Args ... args)
 {
@@ -54,7 +60,7 @@ IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDire
 
     // Get the file stream
     auto randomAccessStream = co_await file.OpenAsync(FileAccessMode::ReadWrite);
-    auto stream = CreateStreamFromRandomAccessStream(randomAccessStream);
+    auto stream = util::CreateStreamFromRandomAccessStream(randomAccessStream);
 
     // Get the DXGI surface from the frame
     auto dxgiFrameTexture = GetDXGIInterfaceFromObject<IDXGISurface>(surface);
@@ -65,15 +71,15 @@ IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDire
     // Get a D2D bitmap for our snapshot
     // TODO: Since this sample doesn't use D2D any other way, it may be better to map 
     //       the pixels manually and hand them to WIC. However, using d2d is easier for now.
-    auto d2dFactory = CreateD2DFactory();
-    auto d2dDevice = CreateD2DDevice(d2dFactory, d3dDevice);
+    auto d2dFactory = util::CreateD2DFactory();
+    auto d2dDevice = util::CreateD2DDevice(d2dFactory, d3dDevice);
     winrt::com_ptr<ID2D1DeviceContext> d2dContext;
     check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
     com_ptr<ID2D1Bitmap1> d2dBitmap;
     check_hresult(d2dContext->CreateBitmapFromDxgiSurface(dxgiFrameTexture.get(), nullptr, d2dBitmap.put()));
 
     // Encode the snapshot
-    auto wicFactory = CreateWICFactory();
+    auto wicFactory = util::CreateWICFactory();
     com_ptr<IWICBitmapEncoder> encoder;
     check_hresult(wicFactory->CreateEncoder(GUID_ContainerFormatPng, nullptr, encoder.put()));
     check_hresult(encoder->Initialize(stream.get(), WICBitmapEncoderNoCache));
@@ -184,7 +190,7 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
         auto window = co_await CreateSharedOnThreadAsync<FullscreenMaxRateWindow>(compositorThreadQueue, mode);
 
         // Start capturing the window. Make note of the timestamps.
-        auto item = CreateCaptureItemForWindow(window->m_window);
+        auto item = util::CreateCaptureItemForWindow(window->m_window);
         auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -259,7 +265,7 @@ IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compo
         else
         {
             // Start the capture
-            auto item = CreateCaptureItemForWindow(window->m_window);
+            auto item = util::CreateCaptureItemForWindow(window->m_window);
             auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
                 device,
                 DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -342,7 +348,7 @@ IAsyncOperation<bool> WindowRenderRateTest(
         winrt::check_bool(window);
 
         // Start capturing the window. Make note of the timestamps.
-        auto item = CreateCaptureItemForWindow(window);
+        auto item = util::CreateCaptureItemForWindow(window);
         auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -434,7 +440,7 @@ std::future<std::pair<IDirect3DSurface, Color>> TestCenterOfWindowAsync(IDirect3
         mouseX -= monitorInfo.rcMonitor.left;
         mouseY -= monitorInfo.rcMonitor.top;
 
-        item = CreateCaptureItemForMonitor(monitor);
+        item = util::CreateCaptureItemForMonitor(monitor);
     }
     break;
     case RemoteCaptureType::Window:
@@ -445,7 +451,7 @@ std::future<std::pair<IDirect3DSurface, Color>> TestCenterOfWindowAsync(IDirect3
         mouseX -= rect.left;
         mouseY -= rect.top;
 
-        item = CreateCaptureItemForWindow(window);
+        item = util::CreateCaptureItemForWindow(window);
     }
     break;
     }
@@ -522,7 +528,7 @@ IAsyncOperation<bool> CursorDisableTest(
         co_await std::chrono::milliseconds(250);
 
         // Setup a visual tree to make the window red
-        auto target = CreateDesktopWindowTarget(compositor, window->m_window, false);
+        auto target = window->CreateWindowTarget(compositor);
         auto root = compositor.CreateSpriteVisual();
         root.RelativeSizeAdjustment({ 1, 1 });
         root.Brush(compositor.CreateColorBrush(Colors::Red()));
@@ -584,12 +590,12 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
         // Create the window on the compositor thread to borrow the message pump
         auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, L"HDR Content");
 
-		auto compositionGraphics = CreateCompositionGraphicsDevice(compositor, d2dDevice.get());
+		auto compositionGraphics = util::CreateCompositionGraphicsDevice(compositor, d2dDevice.get());
 		auto surface = compositionGraphics.CreateDrawingSurface(
 			{ 800, 600 }, DirectXPixelFormat::R16G16B16A16Float, DirectXAlphaMode::Premultiplied);
 
 		{
-			SurfaceContext surfaceContext(surface);
+			util::SurfaceContext surfaceContext(surface);
 			auto d2dContext = surfaceContext.GetDeviceContext();
 
 			auto color = D2D1::ColorF(D2D1::ColorF::Yellow, 1.0f);
@@ -647,14 +653,14 @@ IAsyncAction MainAsync(CommandOptions options)
     auto compositor = compositorController.Compositor();
 
     // Initialize D3D
-    auto d3dDevice = CreateD3DDevice();
+    auto d3dDevice = util::CreateD3DDevice();
     com_ptr<ID3D11DeviceContext> d3dContext;
     d3dDevice->GetImmediateContext(d3dContext.put());
     auto dxgiDevice = d3dDevice.as<IDXGIDevice>();
     auto device = CreateDirect3DDevice(dxgiDevice.get());
 
-    auto d2dFactory = CreateD2DFactory();
-    auto d2dDevice = CreateD2DDevice(d2dFactory, d3dDevice);
+    auto d2dFactory = util::CreateD2DFactory();
+    auto d2dDevice = util::CreateD2DDevice(d2dFactory, d3dDevice);
     winrt::com_ptr<ID2D1DeviceContext> d2dContext;
     check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.put()));
 

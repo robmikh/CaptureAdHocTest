@@ -1,5 +1,5 @@
 #pragma once
-#include "DesktopWindow.h"
+#include <robmikh.common/DesktopWindow.h>
 
 enum class FullscreenTransitionTestMode
 {
@@ -7,7 +7,7 @@ enum class FullscreenTransitionTestMode
     Automated
 };
 
-struct FullscreenTransitionWindow : DesktopWindow<FullscreenTransitionWindow>
+struct FullscreenTransitionWindow : robmikh::common::desktop::DesktopWindow<FullscreenTransitionWindow>
 {
     static const std::wstring ClassName;
     static void RegisterWindowClass();
