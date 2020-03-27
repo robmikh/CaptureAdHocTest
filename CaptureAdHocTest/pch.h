@@ -33,6 +33,8 @@
 #include <future>
 #include <variant>
 #include <functional>
+#include <random>
+#include <algorithm>
 
 // WIL
 #include <wil/resource.h>

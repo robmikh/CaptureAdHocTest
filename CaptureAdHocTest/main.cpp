@@ -608,6 +608,167 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
     co_return true;
 }
 
+IAsyncOperation<bool> ServiceHealthTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    try
+    {
+        std::vector<Color> colors =
+        {
+            Colors::Red(), Colors::Blue(), Colors::Green(), Colors::Yellow(),
+            Colors::Gray(), Colors::Brown(), Colors::Purple(), Colors::Orange(),
+            Colors::Teal(), Colors::White(), Colors::Black(), Colors::Pink(),
+        };
+
+        std::vector<std::shared_ptr<DummyWindow>> testWindows;
+        std::vector<CompositionTarget> targets;
+        for (auto i = 0; i < 25; i++)
+        {
+            std::wstringstream titleString;
+            titleString << L"ServiceHealthTest Window " << (i + 1);
+
+            // Create the window on the compositor thread to borrow the message pump
+            auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, titleString.str());
+            auto target = window->CreateWindowTarget(compositor);
+            auto visual = compositor.CreateSpriteVisual();
+            visual.RelativeSizeAdjustment({ 1, 1 });
+            visual.Brush(compositor.CreateColorBrush(colors[i % colors.size()]));
+            target.Root(visual);
+
+            targets.push_back(target);
+            testWindows.push_back(window);
+        }
+        compositorController.Commit();
+
+        struct CaptureBundle
+        {
+            GraphicsCaptureItem item;
+            GraphicsCaptureSession session;
+            Direct3D11CaptureFramePool framePool;
+        };
+        std::vector<CaptureBundle> captures;
+        for (auto& window : testWindows)
+        {
+            auto item = util::CreateCaptureItemForWindow(window->m_window);
+            auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(device, DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, item.Size());
+            auto session = framePool.CreateCaptureSession(item);
+            session.StartCapture();
+
+            captures.push_back(CaptureBundle{ item, session, framePool });
+        }
+        {
+            auto monitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+            auto item = util::CreateCaptureItemForMonitor(monitor);
+            auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(device, DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, item.Size());
+            auto session = framePool.CreateCaptureSession(item);
+            session.StartCapture();
+
+            captures.push_back(CaptureBundle{ item, session, framePool });
+        }
+
+        co_await std::chrono::seconds(3);
+
+        // Now that we've started a bunch of captures, find the capture service
+        wil::unique_schandle serviceManager(check_pointer(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_ENUMERATE_SERVICE)));
+        DWORD bytesNeeded = 0;
+        DWORD servicesReturned = 0;
+        winrt::check_bool(!EnumServicesStatusExW(
+            serviceManager.get(),
+            SC_ENUM_PROCESS_INFO,
+            SERVICE_WIN32,
+            SERVICE_ACTIVE,
+            nullptr,
+            0,
+            &bytesNeeded,
+            &servicesReturned,
+            nullptr,
+            nullptr));
+        auto numServices = bytesNeeded / sizeof(ENUM_SERVICE_STATUS_PROCESSW);
+        std::vector<ENUM_SERVICE_STATUS_PROCESSW> serviceInfos;
+        serviceInfos.resize(numServices);
+        bytesNeeded = 0;
+        servicesReturned = 0;
+        winrt::check_bool(EnumServicesStatusExW(
+            serviceManager.get(),
+            SC_ENUM_PROCESS_INFO,
+            SERVICE_WIN32,
+            SERVICE_ACTIVE,
+            reinterpret_cast<BYTE*>(serviceInfos.data()),
+            serviceInfos.size() * sizeof(ENUM_SERVICE_STATUS_PROCESSW),
+            &bytesNeeded,
+            &servicesReturned,
+            nullptr,
+            nullptr));
+
+        auto index = -1;
+        auto count = 0;
+        for (auto& info : serviceInfos)
+        {
+            if (info.lpServiceName != nullptr)
+            {
+                std::wstring serviceName(info.lpServiceName);
+                if (serviceName.find(L"CaptureService") != std::string::npos)
+                {
+                    index = count;
+                    break;
+                }
+                //wprintf(L"%s\n", serviceName.c_str());
+            }
+            count++;
+        }
+        if (index < 0)
+        {
+            throw hresult_error(E_UNEXPECTED, L"Could not find CaptureService!");
+        }
+        auto serviceInfo = serviceInfos[index];
+        auto servicePid = serviceInfo.ServiceStatusProcess.dwProcessId;
+        wil::unique_handle serviceHandle(winrt::check_pointer(OpenProcess(PROCESS_ALL_ACCESS, false, servicePid)));
+
+        // Start randomly stopping captures
+        std::vector<uint32_t> randomIndices(captures.size());
+        std::generate(randomIndices.begin(), randomIndices.end(), [n = 0]() mutable { return n++; });
+        std::random_device rd;
+        std::seed_seq rngSeed{ rd(), rd(), rd(), rd() };
+        std::mt19937 g(rngSeed);
+        std::shuffle(randomIndices.begin(), randomIndices.end(), g);
+        for (auto i = 0; i < randomIndices.size(); i++)
+        {
+            auto index = randomIndices[i];
+
+            captures[index].session.Close();
+            co_await std::chrono::milliseconds(100);
+
+            // If we close the last session, then the capture service won't be up (assuming we're the only ones capturing stuff)
+            if (i != randomIndices.size() - 1)
+            {
+                auto waitResult = WaitForSingleObject(serviceHandle.get(), 0);
+                winrt::check_bool(waitResult != WAIT_FAILED);
+                auto serviceAlive = WAIT_TIMEOUT == waitResult;
+                if (!serviceAlive)
+                {
+                    throw hresult_error(E_FAIL, L"CaptureService is gone!");
+                }
+            }
+        }
+
+        for (auto& window : testWindows)
+        {
+            CloseWindow(window->m_window);
+        }
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"ServiceHealthTest failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -654,6 +815,7 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::WindowRate const& args) -> bool { return WindowRenderRateTest(compositorController, device, args.WindowTitle, args.Delay, args.Duration).get(); },
         [=](testparams::CursorDisable const& args) -> bool { return CursorDisableTest(compositorController, device, compositorThread, args.Monitor, args.Window).get(); },
         [=](testparams::PCInfo const&) -> bool { auto buildString = GetBuildString(); wprintf(L"PC info: %s\n", buildString.c_str()); return true;  },
+        [=](testparams::ServiceHealth const&) -> bool { return ServiceHealthTest(compositorController, device, compositorThread).get(); },
         [=](std::monostate const&) -> bool { throw std::runtime_error("Invalid test params!"); },
     }, params);
 }
@@ -665,6 +827,16 @@ int wmain(int argc, wchar_t* argv[])
     //       on high DPI machines.
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     init_apartment();
+    check_hresult(CoInitializeSecurity(
+        nullptr,
+        -1,
+        nullptr,
+        nullptr,
+        RPC_C_AUTHN_LEVEL_DEFAULT,
+        RPC_C_IMP_LEVEL_IMPERSONATE,
+        nullptr,
+        EOAC_NONE,
+        nullptr));
 
     FullscreenMaxRateWindow::RegisterWindowClass();
     DummyWindow::RegisterWindowClass();
@@ -703,6 +875,7 @@ int wmain(int argc, wchar_t* argv[])
             .Argument(wcliparse::Argument(L"--window")
                 .Alias(L"-w")))
         .Command(wcliparse::Command(L"hdr-content", testparams::TestParams(testparams::HDRContent())))
+        .Command(wcliparse::Command(L"service-health", testparams::TestParams(testparams::ServiceHealth())))
         .Command(wcliparse::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
 
     testparams::TestParams params;

@@ -34,6 +34,7 @@ namespace testparams
         bool Window = false;
     };
     struct HDRContent {};
+    struct ServiceHealth {};
     struct PCInfo {};
 
     typedef std::variant<
@@ -44,6 +45,7 @@ namespace testparams
         WindowRate,
         CursorDisable,
         HDRContent,
+        ServiceHealth,
         PCInfo
     > TestParams;
 };
