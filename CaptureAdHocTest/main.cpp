@@ -608,6 +608,63 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
     co_return true;
 }
 
+IAsyncOperation<bool> DisplayAffinityTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::DisplayAffinityMode const& mode)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+
+    try
+    {
+        // Create the window on the compositor thread to borrow the message pump
+        auto window = co_await CreateSharedOnThreadAsync<DummyWindow>(compositorThreadQueue, L"Display Affinity Test");
+        auto visual = compositor.CreateSpriteVisual();
+        visual.RelativeSizeAdjustment({ 1, 1 });
+        visual.Brush(compositor.CreateColorBrush(Colors::Red()));
+
+        auto target = window->CreateWindowTarget(compositor);
+        target.Root(visual);
+
+        auto wdaValue = WDA_NONE;
+        switch (mode)
+        {
+        case testparams::DisplayAffinityMode::Monitor:
+            wdaValue = WDA_MONITOR;
+            break;
+        case testparams::DisplayAffinityMode::ExcludeFromCapture:
+            wdaValue = WDA_EXCLUDEFROMCAPTURE;
+            break;
+        default:
+            break;
+        }
+        winrt::check_bool(SetWindowDisplayAffinity(window->m_window, wdaValue));
+
+        compositorController.Commit();
+        co_await winrt::resume_on_signal(window->Closed().get());
+    }
+    catch (hresult_error const& error)
+    {
+        std::wstring message = L"WDA_NONE";
+        switch (mode)
+        {
+        case testparams::DisplayAffinityMode::Monitor:
+            message = L"WDA_MONITOR";
+            break;
+        case testparams::DisplayAffinityMode::ExcludeFromCapture:
+            message = L"WDA_EXCLUDEFROMCAPTURE";
+            break;
+        default:
+            break;
+        }
+        wprintf(L"DisplayAffinityTest (%s) test failed! 0x%08x - %s \n", message.c_str(), error.code().value, error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -654,6 +711,7 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::WindowRate const& args) -> bool { return WindowRenderRateTest(compositorController, device, args.WindowTitle, args.Delay, args.Duration).get(); },
         [=](testparams::CursorDisable const& args) -> bool { return CursorDisableTest(compositorController, device, compositorThread, args.Monitor, args.Window).get(); },
         [=](testparams::PCInfo const&) -> bool { auto buildString = GetBuildString(); wprintf(L"PC info: %s\n", buildString.c_str()); return true;  },
+        [=](testparams::DisplayAffinity const& args) -> bool { return DisplayAffinityTest(compositorController, device, compositorThread, args.Mode).get();  },
         [=](std::monostate const&) -> bool { throw std::runtime_error("Invalid test params!"); },
     }, params);
 }
@@ -703,6 +761,13 @@ int wmain(int argc, wchar_t* argv[])
             .Argument(wcliparse::Argument(L"--window")
                 .Alias(L"-w")))
         .Command(wcliparse::Command(L"hdr-content", testparams::TestParams(testparams::HDRContent())))
+        .Command(wcliparse::Command(L"display-affinity", std::function(AdHocTestCliValidator::ValidateDisplayAffinity))
+            .Argument(wcliparse::Argument(L"--none")
+                .Alias(L"-n"))
+            .Argument(wcliparse::Argument(L"--monitor")
+                .Alias(L"-m"))
+            .Argument(wcliparse::Argument(L"--exclude")
+                .Alias(L"-e")))
         .Command(wcliparse::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
 
     testparams::TestParams params;

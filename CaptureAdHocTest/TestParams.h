@@ -12,6 +12,12 @@ namespace testparams
         AdHoc,
         Automated
     };
+    enum class DisplayAffinityMode
+    {
+        None,
+        Monitor,
+        ExcludeFromCapture
+    };
 
     struct Alpha {};
     struct FullscreenRate
@@ -34,6 +40,10 @@ namespace testparams
         bool Window = false;
     };
     struct HDRContent {};
+    struct DisplayAffinity
+    {
+        DisplayAffinityMode Mode = DisplayAffinityMode::None;
+    };
     struct PCInfo {};
 
     typedef std::variant<
@@ -44,6 +54,7 @@ namespace testparams
         WindowRate,
         CursorDisable,
         HDRContent,
+        DisplayAffinity,
         PCInfo
     > TestParams;
 };

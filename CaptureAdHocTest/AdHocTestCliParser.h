@@ -69,6 +69,29 @@ public:
         return testparams::TestParams(testparams::CursorDisable{ monitor, window });
     }
 
+    static testparams::TestParams ValidateDisplayAffinity(wcliparse::Matches& matches)
+    {
+        auto none = matches.IsPresent(L"--none");
+        auto monitor = matches.IsPresent(L"--monitor");
+        auto exclude = matches.IsPresent(L"--exclude");
+        if (!none && !monitor && !exclude)
+        {
+            throw std::runtime_error("Strictly one display mode required!");
+        }
+
+        auto mode = testparams::DisplayAffinityMode::None;
+        if (monitor)
+        {
+            mode = testparams::DisplayAffinityMode::Monitor;
+        }
+        else if (exclude)
+        {
+            mode = testparams::DisplayAffinityMode::ExcludeFromCapture;
+        }
+
+        return testparams::TestParams(testparams::DisplayAffinity{ mode });
+    }
+
 private:
     AdHocTestCliValidator() {}
 };
