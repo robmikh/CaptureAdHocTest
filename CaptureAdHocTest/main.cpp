@@ -772,6 +772,7 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
                 }
                 throw hresult_error(E_UNEXPECTED, L"Capture timed out");
             }
+            co_await captureThreadQueue;
 
             // Test for red
             auto clientArea = GetClientAreaRectInCaptureSurfaceSpace(window->m_window);
@@ -796,6 +797,7 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
                 }
                 throw hresult_error(E_UNEXPECTED, L"Capture timed out");
             }
+            co_await captureThreadQueue;
 
             // Test for green
             clientArea = GetClientAreaRectInCaptureSurfaceSpace(window->m_window);
@@ -820,6 +822,7 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
                 }
                 throw hresult_error(E_UNEXPECTED, L"Capture timed out");
             }
+            co_await captureThreadQueue;
 
             // Test for blue
             clientArea = GetClientAreaRectInCaptureSurfaceSpace(window->m_window);
