@@ -92,6 +92,21 @@ public:
         return testparams::TestParams(testparams::DisplayAffinity{ mode });
     }
 
+    static testparams::TestParams ValidateWindowStyle(robmikh::common::wcli::Matches& matches)
+    {
+        auto adHocMode = matches.IsPresent(L"--adhoc");
+        auto automatedMode = matches.IsPresent(L"--automated");
+        if (adHocMode == automatedMode)
+        {
+            throw std::runtime_error("Strictly one test mode required!");
+        }
+
+        return testparams::TestParams(testparams::WindowStyle
+        {
+            adHocMode ? testparams::WindowStyleTestMode::AdHoc : testparams::WindowStyleTestMode::Automated
+        });
+    }
+
 private:
     AdHocTestCliValidator() {}
 };

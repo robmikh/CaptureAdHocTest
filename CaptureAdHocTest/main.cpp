@@ -6,6 +6,8 @@
 #include "FullscreenTransitionWindow.h"
 #include "testutils.h"
 #include "AdHocTestCliParser.h"
+#include "StyleChangingWindow.h"
+#include <dwmapi.h>
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -666,6 +668,175 @@ IAsyncOperation<bool> DisplayAffinityTest(CompositorController const& compositor
     co_return true;
 }
 
+RECT GetClientAreaRectInCaptureSurfaceSpace(HWND window)
+{
+    // Get info about the window
+    POINT clientAreaScreenSpaceOrigin = {};
+    winrt::check_bool(ClientToScreen(window, &clientAreaScreenSpaceOrigin));
+    RECT clientAreaWindowSpace = {};
+    winrt::check_bool(GetClientRect(window, &clientAreaWindowSpace));
+    RECT clientAreaScreenSpace =
+    {
+        clientAreaScreenSpaceOrigin.x,
+        clientAreaScreenSpaceOrigin.y,
+        clientAreaScreenSpaceOrigin.x + clientAreaWindowSpace.right,
+        clientAreaScreenSpaceOrigin.y + clientAreaWindowSpace.bottom
+    };
+    RECT extendedWindowBounds = {};
+    winrt::check_hresult(DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS, reinterpret_cast<void*>(&extendedWindowBounds), sizeof(RECT)));
+
+    auto x = clientAreaScreenSpace.left - extendedWindowBounds.left;
+    auto y = clientAreaScreenSpace.top - extendedWindowBounds.top;
+    auto clientAreaWidth = clientAreaWindowSpace.right;
+    auto clientAreaHeight = clientAreaWindowSpace.bottom;
+    return 
+    {
+        x,
+        y,
+        x + clientAreaWidth,
+        y + clientAreaHeight
+    };
+}
+
+IAsyncOperation<GraphicsCaptureItem> CreateItemForWindowOnThreadAsync(DispatcherQueue const& threadQueue, HWND const& window)
+{
+    wil::shared_event initialized(wil::EventOptions::None);
+    GraphicsCaptureItem item{ nullptr };
+    winrt::check_bool(threadQueue.TryEnqueue([window, &item, initialized]()
+    {
+        item = util::CreateCaptureItemForWindow(window);
+        initialized.SetEvent();
+    }));
+    co_await winrt::resume_on_signal(initialized.get());
+    co_return item;
+}
+
+IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::WindowStyleTestMode mode)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    bool prematureWindowClose = false;
+    try
+    {
+        // Create the window on the compositor thread to borrow the message pump
+        auto window = co_await CreateSharedOnThreadAsync<StyleChangingWindow>(
+            compositorThreadQueue,
+            L"Window Style Capture Test",
+            Colors::Red(),
+            800, 
+            600, 
+            mode == testparams::WindowStyleTestMode::AdHoc);
+
+        if (mode == testparams::WindowStyleTestMode::AdHoc)
+        {
+            co_await winrt::resume_on_signal(window->Closed().get());
+        }
+        else
+        {
+            auto captureThread = DispatcherQueueController::CreateOnDedicatedThread();
+            auto captureThreadQueue = captureThread.DispatcherQueue();
+            co_await captureThreadQueue;
+
+            // Start the capture
+            auto item = util::CreateCaptureItemForWindow(window->m_window);
+            auto closedToken = item.Closed([&prematureWindowClose](auto&&, auto&&)
+            {
+                prematureWindowClose = true;
+            });
+            auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+                device,
+                DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                1,
+                item.Size());
+            auto session = framePool.CreateCaptureSession(item);
+            Direct3D11CaptureFrame currentFrame{ nullptr };
+            auto frameEvent = wil::shared_event(wil::EventOptions::None);
+            framePool.FrameArrived([&currentFrame, frameEvent](auto& framePool, auto&)
+            {
+                WINRT_ASSERT(!currentFrame);
+                currentFrame = framePool.TryGetNextFrame();
+                WINRT_ASSERT(!frameEvent.is_signaled());
+                frameEvent.SetEvent();
+            });
+            session.StartCapture();
+            if (!co_await winrt::resume_on_signal(frameEvent.get(), std::chrono::milliseconds(500)))
+            {
+                co_await captureThreadQueue;
+                if (prematureWindowClose)
+                {
+                    throw hresult_error(E_UNEXPECTED, L"Window should not have closed during test!");
+                }
+                throw hresult_error(E_UNEXPECTED, L"Capture timed out");
+            }
+
+            // Test for red
+            auto clientArea = GetClientAreaRectInCaptureSurfaceSpace(window->m_window);
+            TestSurfaceAtPoint(device, currentFrame.Surface(), Colors::Red(), clientArea.left, clientArea.top);
+
+            // Transition to pop-up
+            window->Style(WindowStyle::Popup);
+            window->SetBackgroundColor(Colors::Green());
+            // Wait for the transition
+            co_await std::chrono::milliseconds(500);
+
+            // Release the frame and get a new one
+            frameEvent.ResetEvent();
+            currentFrame.Close();
+            currentFrame = nullptr;
+            if (!co_await winrt::resume_on_signal(frameEvent.get(), std::chrono::milliseconds(500)))
+            {
+                co_await captureThreadQueue;
+                if (prematureWindowClose)
+                {
+                    throw hresult_error(E_UNEXPECTED, L"Window should not have closed during test!");
+                }
+                throw hresult_error(E_UNEXPECTED, L"Capture timed out");
+            }
+
+            // Test for green
+            clientArea = GetClientAreaRectInCaptureSurfaceSpace(window->m_window);
+            TestSurfaceAtPoint(device, currentFrame.Surface(), Colors::Green(), clientArea.left, clientArea.top);
+
+            // Transition to overlapped
+            window->Style(WindowStyle::Overlapped);
+            window->SetBackgroundColor(Colors::Blue());
+            // Wait for the transition
+            co_await std::chrono::milliseconds(500);
+
+            // Release the frame and get a new one
+            frameEvent.ResetEvent();
+            currentFrame.Close();
+            currentFrame = nullptr;
+            if (!co_await winrt::resume_on_signal(frameEvent.get(), std::chrono::milliseconds(500)))
+            {
+                co_await captureThreadQueue;
+                if (prematureWindowClose)
+                {
+                    throw hresult_error(E_UNEXPECTED, L"Window should not have closed during test!");
+                }
+                throw hresult_error(E_UNEXPECTED, L"Capture timed out");
+            }
+
+            // Test for blue
+            clientArea = GetClientAreaRectInCaptureSurfaceSpace(window->m_window);
+            TestSurfaceAtPoint(device, currentFrame.Surface(), Colors::Blue(), clientArea.left, clientArea.top);
+
+            co_await captureThreadQueue;
+            item.Closed(closedToken);
+        }
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"Window Style test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
+        co_return false;
+    }
+
+    co_return true;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -713,6 +884,7 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::CursorDisable const& args) -> bool { return CursorDisableTest(compositorController, device, compositorThread, args.Monitor, args.Window).get(); },
         [=](testparams::PCInfo const&) -> bool { auto buildString = GetBuildString(); wprintf(L"PC info: %s\n", buildString.c_str()); return true;  },
         [=](testparams::DisplayAffinity const& args) -> bool { return DisplayAffinityTest(compositorController, device, compositorThread, args.Mode).get();  },
+        [=](testparams::WindowStyle const& args) -> bool { return WindowStyleTest(compositorController, device, compositorThread, args.TransitionMode).get(); },
     }, params);
 }
 
@@ -727,6 +899,7 @@ int wmain(int argc, wchar_t* argv[])
     FullscreenMaxRateWindow::RegisterWindowClass();
     DummyWindow::RegisterWindowClass();
     FullscreenTransitionWindow::RegisterWindowClass();
+    StyleChangingWindow::RegisterWindowClass();
 
     auto app = util::Application<testparams::TestParams>(L"CaptureAdHocTest")
         .Version(L"0.2.0")
@@ -768,6 +941,11 @@ int wmain(int argc, wchar_t* argv[])
                 .Alias(L"-m"))
             .Argument(util::Argument(L"--exclude")
                 .Alias(L"-e")))
+        .Command(util::Command(L"window-style", std::function(AdHocTestCliValidator::ValidateWindowStyle))
+            .Argument(util::Argument(L"--adhoc")
+                .Alias(L"-ah"))
+            .Argument(util::Argument(L"--automated")
+                .Alias(L"-auto")))
         .Command(util::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
 
     testparams::TestParams params;

@@ -70,10 +70,12 @@ private:
 	D3D11_TEXTURE2D_DESC m_textureDesc = {};
 };
 
-void TestCenterOfSurface(
+void TestSurfaceAtPoint(
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice const& device, 
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface const& surface, 
-	winrt::Windows::UI::Color expectedColor)
+	winrt::Windows::UI::Color expectedColor,
+	uint32_t x,
+	uint32_t y)
 {
 	auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
 	winrt::com_ptr<ID3D11DeviceContext> d3dContext;
@@ -83,7 +85,16 @@ void TestCenterOfSurface(
 	D3D11_TEXTURE2D_DESC desc = {};
 	frameTexture->GetDesc(&desc);
 	auto mapped = MappedTexture(d3dContext, frameTexture);
-	check_color(mapped.ReadBGRAPixel(desc.Width / 2, desc.Height / 2), expectedColor);
+	check_color(mapped.ReadBGRAPixel(x, y), expectedColor);
+}
+
+void TestCenterOfSurface(
+	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice const& device,
+	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface const& surface,
+	winrt::Windows::UI::Color expectedColor)
+{
+	auto desc = surface.Description();
+	return TestSurfaceAtPoint(device, surface, expectedColor, (uint32_t)desc.Width / 2, (uint32_t)desc.Height / 2);
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setsystemcursor

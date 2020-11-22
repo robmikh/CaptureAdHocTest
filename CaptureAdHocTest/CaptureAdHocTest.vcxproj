@@ -87,6 +87,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">gdi32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
@@ -123,11 +124,14 @@
     <ClCompile Include="FullscreenTransitionWindow.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="StyleChangingWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdHocTestCliParser.h" />
     <ClInclude Include="CaptureSnapshot.h" />
+    <ClInclude Include="ControlsHelper.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="StyleChangingWindow.h" />
     <ClInclude Include="TestParams.h" />
     <ClInclude Include="testutils.h" />
     <ClInclude Include="completionSource.h" />
