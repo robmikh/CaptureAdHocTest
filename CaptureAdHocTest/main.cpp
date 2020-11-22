@@ -1,9 +1,9 @@
 ﻿#include "pch.h"
+#include <robmikh.common/wcliparse.h>
 #include "CaptureSnapshot.h"
 #include "FullscreenMaxRateWindow.h"
 #include "DummyWindow.h"
 #include "FullscreenTransitionWindow.h"
-#include "wcliparse.h"
 #include "testutils.h"
 #include "AdHocTestCliParser.h"
 
@@ -22,6 +22,7 @@ namespace util
 {
     using namespace robmikh::common::desktop;
     using namespace robmikh::common::uwp;
+    using namespace robmikh::common::wcli;
 }
 
 template <typename T, typename ... Args>
@@ -728,47 +729,47 @@ int wmain(int argc, wchar_t* argv[])
     DummyWindow::RegisterWindowClass();
     FullscreenTransitionWindow::RegisterWindowClass();
 
-    auto app = wcliparse::Application<testparams::TestParams>(L"CaptureAdHocTest")
+    auto app = util::Application<testparams::TestParams>(L"CaptureAdHocTest")
         .Version(L"0.2.0")
         .Author(L"Robert Mikhayelyan (rob.mikh@outlook.com)")
         .About(L"A small utility to test various parts of the Windows.Graphics.Capture API.")
-        .Command(wcliparse::Command(L"alpha", testparams::TestParams(testparams::Alpha())))
-        .Command(wcliparse::Command(L"fullscreen-rate", std::function(AdHocTestCliValidator::ValidateFullscreenRate))
-            .Argument(wcliparse::Argument(L"--setfullscreenstate")
+        .Command(util::Command(L"alpha", testparams::TestParams(testparams::Alpha())))
+        .Command(util::Command(L"fullscreen-rate", std::function(AdHocTestCliValidator::ValidateFullscreenRate))
+            .Argument(util::Argument(L"--setfullscreenstate")
                 .Alias(L"-sfs"))
-            .Argument(wcliparse::Argument(L"--fullscreenwindow")
+            .Argument(util::Argument(L"--fullscreenwindow")
                 .Alias(L"-fw")))
-        .Command(wcliparse::Command(L"fullscreen-transition", std::function(AdHocTestCliValidator::ValidateFullscreenTransition))
-            .Argument(wcliparse::Argument(L"--adhoc")
+        .Command(util::Command(L"fullscreen-transition", std::function(AdHocTestCliValidator::ValidateFullscreenTransition))
+            .Argument(util::Argument(L"--adhoc")
                 .Alias(L"-ah"))
-            .Argument(wcliparse::Argument(L"--automated")
+            .Argument(util::Argument(L"--automated")
                 .Alias(L"-auto")))
-        .Command(wcliparse::Command(L"window-rate", std::function(AdHocTestCliValidator::ValidateWindowRate))
-            .Argument(wcliparse::Argument(L"--window")
+        .Command(util::Command(L"window-rate", std::function(AdHocTestCliValidator::ValidateWindowRate))
+            .Argument(util::Argument(L"--window")
                 .Required(true)
                 .Description(L"window title string")
                 .TakesValue(true))
-            .Argument(wcliparse::Argument(L"--delay")
+            .Argument(util::Argument(L"--delay")
                 .Description(L"delay in seconds")
                 .TakesValue(true))
-            .Argument(wcliparse::Argument(L"--duration")
+            .Argument(util::Argument(L"--duration")
                 .Description(L"duration in seconds")
                 .TakesValue(true)
                 .DefaultValue(L"10")))
-        .Command(wcliparse::Command(L"cursor-disable", std::function(AdHocTestCliValidator::ValidateCursorDisable))
-            .Argument(wcliparse::Argument(L"--monitor")
+        .Command(util::Command(L"cursor-disable", std::function(AdHocTestCliValidator::ValidateCursorDisable))
+            .Argument(util::Argument(L"--monitor")
                 .Alias(L"-m"))
-            .Argument(wcliparse::Argument(L"--window")
+            .Argument(util::Argument(L"--window")
                 .Alias(L"-w")))
-        .Command(wcliparse::Command(L"hdr-content", testparams::TestParams(testparams::HDRContent())))
-        .Command(wcliparse::Command(L"display-affinity", std::function(AdHocTestCliValidator::ValidateDisplayAffinity))
-            .Argument(wcliparse::Argument(L"--none")
+        .Command(util::Command(L"hdr-content", testparams::TestParams(testparams::HDRContent())))
+        .Command(util::Command(L"display-affinity", std::function(AdHocTestCliValidator::ValidateDisplayAffinity))
+            .Argument(util::Argument(L"--none")
                 .Alias(L"-n"))
-            .Argument(wcliparse::Argument(L"--monitor")
+            .Argument(util::Argument(L"--monitor")
                 .Alias(L"-m"))
-            .Argument(wcliparse::Argument(L"--exclude")
+            .Argument(util::Argument(L"--exclude")
                 .Alias(L"-e")))
-        .Command(wcliparse::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
+        .Command(util::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
 
     testparams::TestParams params;
     try

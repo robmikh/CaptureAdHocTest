@@ -19,7 +19,6 @@
     <ClInclude Include="FrameTimer.h" />
     <ClInclude Include="FullscreenMaxRateWindow.h" />
     <ClInclude Include="DummyWindow.h" />
-    <ClInclude Include="wcliparse.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
     <ClInclude Include="testutils.h" />
     <ClInclude Include="AdHocTestCliParser.h" />

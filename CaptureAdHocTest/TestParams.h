@@ -47,7 +47,6 @@ namespace testparams
     struct PCInfo {};
 
     typedef std::variant<
-        std::monostate,
         Alpha,
         FullscreenRate,
         FullscreenTransition,

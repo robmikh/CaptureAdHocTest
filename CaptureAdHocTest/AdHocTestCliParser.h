@@ -1,13 +1,13 @@
 #pragma once
-#include "wcliparse.h"
+#include <robmikh.common/wcliparse.h>
 #include "TestParams.h"
 
-typedef std::function<testparams::TestParams(wcliparse::Matches&)> TestParamInputValidator;
+typedef std::function<testparams::TestParams(robmikh::common::wcli::Matches&)> TestParamInputValidator;
 
 class AdHocTestCliValidator
 {
 public:
-    static testparams::TestParams ValidateFullscreenRate(wcliparse::Matches& matches)
+    static testparams::TestParams ValidateFullscreenRate(robmikh::common::wcli::Matches& matches)
     {
         auto setFullscreenState = matches.IsPresent(L"--setfullscreenstate");
         auto fullscreenWindow = matches.IsPresent(L"--fullscreenwindow");
@@ -22,7 +22,7 @@ public:
         });
     }
 
-    static testparams::TestParams ValidateFullscreenTransition(wcliparse::Matches& matches)
+    static testparams::TestParams ValidateFullscreenTransition(robmikh::common::wcli::Matches& matches)
     {
         auto adHocMode = matches.IsPresent(L"--adhoc");
         auto automatedMode = matches.IsPresent(L"--automated");
@@ -37,7 +37,7 @@ public:
         });
     }
 
-    static testparams::TestParams ValidateWindowRate(wcliparse::Matches& matches)
+    static testparams::TestParams ValidateWindowRate(robmikh::common::wcli::Matches& matches)
     {
         auto result = testparams::WindowRate();
         result.WindowTitle = matches.ValueOf(L"--window");
@@ -57,7 +57,7 @@ public:
         return testparams::TestParams(result);
     }
 
-    static testparams::TestParams ValidateCursorDisable(wcliparse::Matches& matches)
+    static testparams::TestParams ValidateCursorDisable(robmikh::common::wcli::Matches& matches)
     {
         auto monitor = matches.IsPresent(L"--monitor");
         auto window = matches.IsPresent(L"--window");
@@ -69,7 +69,7 @@ public:
         return testparams::TestParams(testparams::CursorDisable{ monitor, window });
     }
 
-    static testparams::TestParams ValidateDisplayAffinity(wcliparse::Matches& matches)
+    static testparams::TestParams ValidateDisplayAffinity(robmikh::common::wcli::Matches& matches)
     {
         auto none = matches.IsPresent(L"--none");
         auto monitor = matches.IsPresent(L"--monitor");
