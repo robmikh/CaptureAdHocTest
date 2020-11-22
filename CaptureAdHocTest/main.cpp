@@ -713,7 +713,6 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::CursorDisable const& args) -> bool { return CursorDisableTest(compositorController, device, compositorThread, args.Monitor, args.Window).get(); },
         [=](testparams::PCInfo const&) -> bool { auto buildString = GetBuildString(); wprintf(L"PC info: %s\n", buildString.c_str()); return true;  },
         [=](testparams::DisplayAffinity const& args) -> bool { return DisplayAffinityTest(compositorController, device, compositorThread, args.Mode).get();  },
-        [=](std::monostate const&) -> bool { throw std::runtime_error("Invalid test params!"); },
     }, params);
 }
 
