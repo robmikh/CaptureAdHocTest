@@ -718,6 +718,8 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
     com_ptr<ID3D11DeviceContext> d3dContext;
     d3dDevice->GetImmediateContext(d3dContext.put());
 
+    bool success = true;
+    Direct3D11CaptureFrame currentFrame{ nullptr };
     bool prematureWindowClose = false;
     try
     {
@@ -752,7 +754,6 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
                 1,
                 item.Size());
             auto session = framePool.CreateCaptureSession(item);
-            Direct3D11CaptureFrame currentFrame{ nullptr };
             auto frameEvent = wil::shared_event(wil::EventOptions::None);
             framePool.FrameArrived([&currentFrame, frameEvent](auto& framePool, auto&)
             {
@@ -831,10 +832,16 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
     catch (hresult_error const& error)
     {
         wprintf(L"Window Style test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
-        co_return false;
+        success = false;
     }
 
-    co_return true;
+    if (!success && currentFrame != nullptr)
+    {
+        auto file = co_await SaveFrameAsync(device, currentFrame.Surface(), L"window_style_failure.png");
+        wprintf(L"Failure file saved: %s\n", file.Path().c_str());
+    }
+
+    co_return success;
 }
 
 std::wstring GetBuildString()
