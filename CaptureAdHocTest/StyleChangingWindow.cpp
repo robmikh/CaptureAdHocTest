@@ -148,7 +148,7 @@ LONG GetStyleFromWindowdStyle(WindowStyle style)
 void ApplyStyle(HWND window, WindowStyle style)
 {
     auto newStyle = GetStyleFromWindowdStyle(style);
-    SetWindowLongW(window, GWL_STYLE, newStyle);
+    SetWindowLongW(window, GWL_STYLE, newStyle | WS_VISIBLE);
     winrt::check_bool(SetWindowPos(window, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE));
     ShowWindow(window, SW_SHOW);
 }
