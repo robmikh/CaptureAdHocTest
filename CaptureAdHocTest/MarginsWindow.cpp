@@ -5,7 +5,20 @@
 
 namespace winrt
 {
+    using namespace Windows::Foundation;
+    using namespace Windows::Graphics::Capture;
+    using namespace Windows::Graphics::DirectX;
+    using namespace Windows::Graphics::DirectX::Direct3D11;
+    using namespace Windows::Graphics::Imaging;
+    using namespace Windows::Storage;
+    using namespace Windows::Storage::Streams;
     using namespace Windows::UI;
+}
+
+namespace util
+{
+    using namespace robmikh::common::desktop;
+    using namespace robmikh::common::uwp;
 }
 
 const std::wstring MarginsWindow::ClassName = L"CaptureAdHocTest.MarginsWindow";
@@ -86,6 +99,10 @@ LRESULT MarginsWindow::MessageHandler(UINT const message, WPARAM const wparam, L
             {
                 Fullscreen(!m_fullscreen);
             }
+            else if (hwnd == m_takeSnapshotButton)
+            {
+                TakeSnapshot();
+            }
         }
         break;
         }
@@ -103,6 +120,7 @@ void MarginsWindow::CreateControls()
     auto controls = StackPanel(m_window, 10, 10, 200);
 
     m_toggleFullscreenButton = controls.CreateControl(ControlType::Button, L"Toggle fullscreen");
+    m_takeSnapshotButton = controls.CreateControl(ControlType::Button, L"Take snapshot");
 }
 
 void MarginsWindow::Fullscreen(bool isFullscreen)
@@ -123,16 +141,19 @@ void MarginsWindow::Fullscreen(bool isFullscreen)
         auto workAreaWidth = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
         auto workAreaHeight = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
 
+        HWND insertAfter = nullptr;
+
         if (m_fullscreen)
         {
             currentStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
             currentExStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
-            currentExStyle |= WS_EX_TOPMOST;
 
             x = monitorInfo.rcWork.left;
             y = monitorInfo.rcWork.top;
             width = workAreaWidth;
             height = workAreaHeight;
+
+            insertAfter = HWND_TOPMOST;
         }
         else 
         {
@@ -142,11 +163,110 @@ void MarginsWindow::Fullscreen(bool isFullscreen)
             y = (workAreaHeight - m_initialHeight) / 2;
             width = m_initialWidth;
             height = m_initialHeight;
+
+            insertAfter = HWND_NOTOPMOST;
         }
 
         SetWindowLongW(m_window, GWL_STYLE, currentStyle | WS_VISIBLE);
         SetWindowLongW(m_window, GWL_EXSTYLE, currentExStyle);
-        winrt::check_bool(SetWindowPos(m_window, nullptr, x, y, width, height, SWP_FRAMECHANGED | SWP_SHOWWINDOW));
+        winrt::check_bool(SetWindowPos(m_window, insertAfter, x, y, width, height, SWP_FRAMECHANGED));
         ShowWindow(m_window, SW_SHOW);
     }
+}
+
+winrt::IAsyncAction SaveBitmapAsync(std::vector<byte> bits, uint32_t width, uint32_t height)
+{
+    // Get a file to save the screenshot
+    auto currentPath = std::filesystem::current_path();
+    auto folder = co_await winrt::StorageFolder::GetFolderFromPathAsync(currentPath.wstring());
+    auto file = co_await folder.CreateFileAsync(L"marginsSnapshot.png", winrt::CreationCollisionOption::ReplaceExisting);
+
+    auto stream = co_await file.OpenAsync(winrt::FileAccessMode::ReadWrite);
+    auto encoder = co_await winrt::BitmapEncoder::CreateAsync(winrt::BitmapEncoder::PngEncoderId(), stream);
+    encoder.SetPixelData(
+        winrt::BitmapPixelFormat::Bgra8,
+        winrt::BitmapAlphaMode::Premultiplied,
+        width,
+        height,
+        1.0,
+        1.0,
+        bits);
+    co_await encoder.FlushAsync();
+}
+
+winrt::fire_and_forget MarginsWindow::TakeSnapshot()
+{
+    // TODO: Don't create a new d3d device each time
+    auto d3dDevice = util::CreateD3DDevice();
+    winrt::com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+    auto dxgiDevice = d3dDevice.as<IDXGIDevice>();
+    auto device = CreateDirect3DDevice(dxgiDevice.get());
+
+    auto item = util::CreateCaptureItemForWindow(m_window);
+    auto framePool = winrt::Direct3D11CaptureFramePool::Create(
+        device,
+        winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        1,
+        item.Size());
+    auto session = framePool.CreateCaptureSession(item);
+
+    winrt::com_ptr<ID3D11Texture2D> result;
+    wil::shared_event captureEvent(wil::EventOptions::ManualReset);
+    framePool.FrameArrived([session, d3dDevice, d3dContext, &result, captureEvent](auto& framePool, auto&)
+        {
+            auto frame = framePool.TryGetNextFrame();
+            auto frameTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+
+            // Make a copy of the texture
+            D3D11_TEXTURE2D_DESC desc = {};
+            frameTexture->GetDesc(&desc);
+            // Clear flags that we don't need
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.BindFlags = 0;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            desc.MiscFlags = 0;
+            winrt::com_ptr<ID3D11Texture2D> textureCopy;
+            winrt::check_hresult(d3dDevice->CreateTexture2D(&desc, nullptr, textureCopy.put()));
+            d3dContext->CopyResource(textureCopy.get(), frameTexture.get());
+
+            result = textureCopy;
+
+            // End the capture
+            session.Close();
+            framePool.Close();
+
+            // Signal that we're done
+            captureEvent.SetEvent();
+        });
+    session.StartCapture();
+
+    // Don't return until the capture is finished
+    co_await winrt::resume_on_signal(captureEvent.get());
+    WINRT_ASSERT(result != nullptr);
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    result->GetDesc(&desc);
+    WINRT_ASSERT(desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM);
+    auto bytesPerPixel = 4;
+
+    // Get the bits
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    winrt::check_hresult(d3dContext->Map(result.get(), 0, D3D11_MAP_READ, 0, &mapped));
+
+    std::vector<byte> bits(desc.Width * desc.Height * bytesPerPixel, 0);
+    auto source = reinterpret_cast<byte*>(mapped.pData);
+    auto dest = bits.data();
+    for (auto i = 0; i < (int)desc.Height; i++)
+    {
+        memcpy(dest, source, desc.Width * bytesPerPixel);
+
+        source += mapped.RowPitch;
+        dest += desc.Width * bytesPerPixel;
+    }
+
+    d3dContext->Unmap(result.get(), 0);
+
+    // Save
+    co_await SaveBitmapAsync(bits, desc.Width, desc.Height);
 }

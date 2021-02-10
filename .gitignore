@@ -341,3 +341,4 @@ healthchecksdb
 
 # Custom ignore
 **/**_failure.png
+/CaptureAdHocTest/marginsSnapshot.png

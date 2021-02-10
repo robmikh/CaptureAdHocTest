@@ -19,11 +19,13 @@ struct MarginsWindow : robmikh::common::desktop::DesktopWindow<MarginsWindow>
 private:
     void CloseWindow() { m_windowClosed.SetEvent(); }
     void CreateControls();
+    winrt::fire_and_forget TakeSnapshot();
 
 private:
     wil::shared_event m_windowClosed{ nullptr };
     bool m_fullscreen = false;
     HWND m_toggleFullscreenButton = nullptr;
+    HWND m_takeSnapshotButton = nullptr;
     wil::unique_hbrush m_brush;
     uint32_t m_initialWidth;
     uint32_t m_initialHeight;
