@@ -9,7 +9,7 @@ namespace util
 
 using namespace testparams;
 
-const std::wstring FullscreenMaxRateWindow::ClassName = L"FullscreenMaxRateWindow";
+const std::wstring FullscreenMaxRateWindow::ClassName = L"CaptureAdHocTest.FullscreenMaxRateWindow";
 
 void FullscreenMaxRateWindow::RegisterWindowClass()
 {

@@ -7,6 +7,7 @@
 #include "testutils.h"
 #include "AdHocTestCliParser.h"
 #include "StyleChangingWindow.h"
+#include "MarginsWindow.h"
 #include <dwmapi.h>
 
 using namespace winrt;
@@ -847,6 +848,51 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
     co_return success;
 }
 
+IAsyncOperation<bool> WindowMarginsTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::MarginsTestMode mode)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    bool success = true;
+    Direct3D11CaptureFrame currentFrame{ nullptr };
+    bool prematureWindowClose = false;
+    try
+    {
+        // Create the window on the compositor thread to borrow the message pump
+        auto window = co_await CreateSharedOnThreadAsync<MarginsWindow>(
+            compositorThreadQueue,
+            L"Window Margins Capture Test",
+            Colors::Red(),
+            800,
+            600,
+            mode == testparams::MarginsTestMode::AdHoc);
+
+        if (mode == testparams::MarginsTestMode::AdHoc)
+        {
+            co_await winrt::resume_on_signal(window->Closed().get());
+        }
+        else
+        {
+            throw winrt::hresult_not_implemented();
+        }
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"Window Margins test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
+        success = false;
+    }
+
+    if (!success && currentFrame != nullptr)
+    {
+        auto file = co_await SaveFrameAsync(device, currentFrame.Surface(), L"window_margin_failure.png");
+        wprintf(L"Failure file saved: %s\n", file.Path().c_str());
+    }
+
+    co_return success;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -895,6 +941,7 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::PCInfo const&) -> bool { auto buildString = GetBuildString(); wprintf(L"PC info: %s\n", buildString.c_str()); return true;  },
         [=](testparams::DisplayAffinity const& args) -> bool { return DisplayAffinityTest(compositorController, device, compositorThread, args.Mode).get();  },
         [=](testparams::WindowStyle const& args) -> bool { return WindowStyleTest(compositorController, device, compositorThread, args.TransitionMode).get(); },
+        [=](testparams::WindowMargins const& args) -> bool { return WindowMarginsTest(compositorController, device, compositorThread, args.TestMode).get(); },
     }, params);
 }
 
@@ -910,6 +957,7 @@ int wmain(int argc, wchar_t* argv[])
     DummyWindow::RegisterWindowClass();
     FullscreenTransitionWindow::RegisterWindowClass();
     StyleChangingWindow::RegisterWindowClass();
+    MarginsWindow::RegisterWindowClass();
 
     auto app = util::Application<testparams::TestParams>(L"CaptureAdHocTest")
         .Version(L"0.2.0")
@@ -952,6 +1000,11 @@ int wmain(int argc, wchar_t* argv[])
             .Argument(util::Argument(L"--exclude")
                 .Alias(L"-e")))
         .Command(util::Command(L"window-style", std::function(AdHocTestCliValidator::ValidateWindowStyle))
+            .Argument(util::Argument(L"--adhoc")
+                .Alias(L"-ah"))
+            .Argument(util::Argument(L"--automated")
+                .Alias(L"-auto")))
+        .Command(util::Command(L"window-margins", std::function(AdHocTestCliValidator::ValidateWindowMargins))
             .Argument(util::Argument(L"--adhoc")
                 .Alias(L"-ah"))
             .Argument(util::Argument(L"--automated")

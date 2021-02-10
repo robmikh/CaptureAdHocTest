@@ -107,6 +107,21 @@ public:
         });
     }
 
+    static testparams::TestParams ValidateWindowMargins(robmikh::common::wcli::Matches& matches)
+    {
+        auto adHocMode = matches.IsPresent(L"--adhoc");
+        auto automatedMode = matches.IsPresent(L"--automated");
+        if (adHocMode == automatedMode)
+        {
+            throw std::runtime_error("Strictly one test mode required!");
+        }
+
+        return testparams::TestParams(testparams::WindowMargins
+            {
+                adHocMode ? testparams::MarginsTestMode::AdHoc : testparams::MarginsTestMode::Automated
+            });
+    }
+
 private:
     AdHocTestCliValidator() {}
 };

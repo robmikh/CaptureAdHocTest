@@ -9,7 +9,7 @@ namespace util
 
 using namespace testparams;
 
-const std::wstring FullscreenTransitionWindow::ClassName = L"FullscreenTransitionWindow";
+const std::wstring FullscreenTransitionWindow::ClassName = L"CaptureAdHocTest.FullscreenTransitionWindow";
 
 void FullscreenTransitionWindow::RegisterWindowClass()
 {

@@ -1,13 +1,14 @@
 #include "pch.h"
 #include "StyleChangingWindow.h"
 #include "ControlsHelper.h"
+#include "testutils.h"
 
 namespace winrt
 {
     using namespace Windows::UI;
 }
 
-const std::wstring StyleChangingWindow::ClassName = L"WindowStyleCaptureRepro.StyleChangingWindow";
+const std::wstring StyleChangingWindow::ClassName = L"CaptureAdHocTest.StyleChangingWindow";
 
 void StyleChangingWindow::RegisterWindowClass()
 {
@@ -53,28 +54,6 @@ void StyleChangingWindow::SetBackgroundColor(winrt::Color const& color)
     m_brush.reset(winrt::check_pointer(CreateSolidBrush(RGB(color.R, color.G, color.B))));
     winrt::check_bool(InvalidateRect(m_window, nullptr, false));
 }
-
-struct PaintHelper
-{
-    PaintHelper(HWND window)
-    {
-        m_window = window;
-        m_hdc = winrt::check_pointer(BeginPaint(m_window, &m_paint));
-    }
-
-    ~PaintHelper()
-    {
-        EndPaint(m_window, &m_paint);
-    }
-
-    ::HDC HDC() { return m_hdc; }
-    PAINTSTRUCT const& PaintStruct() { return m_paint; }
-
-private:
-    HWND m_window = nullptr;
-    PAINTSTRUCT m_paint = {};
-    ::HDC m_hdc = nullptr;
-};
 
 LRESULT StyleChangingWindow::MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam)
 {

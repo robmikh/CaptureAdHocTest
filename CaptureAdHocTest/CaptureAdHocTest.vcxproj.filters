@@ -12,6 +12,7 @@
     <ClCompile Include="DummyWindow.cpp" />
     <ClCompile Include="FullscreenTransitionWindow.cpp" />
     <ClCompile Include="StyleChangingWindow.cpp" />
+    <ClCompile Include="MarginsWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -26,5 +27,6 @@
     <ClInclude Include="TestParams.h" />
     <ClInclude Include="StyleChangingWindow.h" />
     <ClInclude Include="ControlsHelper.h" />
+    <ClInclude Include="MarginsWindow.h" />
   </ItemGroup>
 </Project>

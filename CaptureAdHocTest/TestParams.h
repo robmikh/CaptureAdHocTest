@@ -23,6 +23,11 @@ namespace testparams
         AdHoc,
         Automated
     };
+    enum class MarginsTestMode
+    {
+        AdHoc,
+        Automated
+    };
 
     struct Alpha {};
     struct FullscreenRate
@@ -53,6 +58,10 @@ namespace testparams
     {
         WindowStyleTestMode TransitionMode = WindowStyleTestMode::AdHoc;
     };
+    struct WindowMargins
+    {
+        MarginsTestMode TestMode = MarginsTestMode::AdHoc;
+    };
     struct PCInfo {};
 
     typedef std::variant<
@@ -64,6 +73,7 @@ namespace testparams
         HDRContent,
         DisplayAffinity,
         WindowStyle,
+        WindowMargins,
         PCInfo
     > TestParams;
 };

@@ -1,13 +1,12 @@
 #include "pch.h"
 #include "DummyWindow.h"
 
-const std::wstring DummyWindow::ClassName = L"DummyWindow";
+const std::wstring DummyWindow::ClassName = L"CaptureAdHocTest.DummyWindow";
 
 void DummyWindow::RegisterWindowClass()
 {
     auto instance = winrt::check_pointer(GetModuleHandleW(nullptr));
     WNDCLASSEX wcex = { sizeof(wcex) };
-    wcex.style = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc = WndProc;
     wcex.hInstance = instance;
     wcex.hIcon = LoadIconW(instance, IDI_APPLICATION);

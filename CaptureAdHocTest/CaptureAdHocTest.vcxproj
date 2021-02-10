@@ -130,6 +130,7 @@
     <ClCompile Include="FullscreenMaxRateWindow.cpp" />
     <ClCompile Include="FullscreenTransitionWindow.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="MarginsWindow.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="StyleChangingWindow.cpp" />
   </ItemGroup>
@@ -138,6 +139,7 @@
     <ClInclude Include="CaptureSnapshot.h" />
     <ClInclude Include="ControlsHelper.h" />
     <ClInclude Include="FullscreenTransitionWindow.h" />
+    <ClInclude Include="MarginsWindow.h" />
     <ClInclude Include="StyleChangingWindow.h" />
     <ClInclude Include="TestParams.h" />
     <ClInclude Include="testutils.h" />

@@ -70,7 +70,7 @@ private:
 	D3D11_TEXTURE2D_DESC m_textureDesc = {};
 };
 
-void TestSurfaceAtPoint(
+inline void TestSurfaceAtPoint(
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice const& device, 
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface const& surface, 
 	winrt::Windows::UI::Color expectedColor,
@@ -88,7 +88,7 @@ void TestSurfaceAtPoint(
 	check_color(mapped.ReadBGRAPixel(x, y), expectedColor);
 }
 
-void TestCenterOfSurface(
+inline void TestCenterOfSurface(
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice const& device,
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface const& surface,
 	winrt::Windows::UI::Color expectedColor)
@@ -135,3 +135,25 @@ T CreateWin32Struct()
 	thing.cbSize = sizeof(T);
 	return thing;
 }
+
+struct PaintHelper
+{
+	PaintHelper(HWND window)
+	{
+		m_window = window;
+		m_hdc = winrt::check_pointer(BeginPaint(m_window, &m_paint));
+	}
+
+	~PaintHelper()
+	{
+		EndPaint(m_window, &m_paint);
+	}
+
+	::HDC HDC() { return m_hdc; }
+	PAINTSTRUCT const& PaintStruct() { return m_paint; }
+
+private:
+	HWND m_window = nullptr;
+	PAINTSTRUCT m_paint = {};
+	::HDC m_hdc = nullptr;
+};
