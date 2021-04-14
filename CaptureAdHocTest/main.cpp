@@ -893,6 +893,67 @@ IAsyncOperation<bool> WindowMarginsTest(CompositorController const& compositorCo
     co_return success;
 }
 
+IAsyncOperation<bool> MonitorOffTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue)
+{
+    auto compositor = compositorController.Compositor();
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
+    com_ptr<ID3D11DeviceContext> d3dContext;
+    d3dDevice->GetImmediateContext(d3dContext.put());
+
+    bool success = true;
+    try
+    {
+        // Create a visual tree for us to capture
+        auto visual = compositor.CreateSpriteVisual();
+        visual.Size({ 100, 100 });
+        visual.Brush(compositor.CreateColorBrush(Colors::Red()));
+
+        // Setup capture
+        auto item = GraphicsCaptureItem::CreateFromVisual(visual);
+        auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+            device,
+            DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            1,
+            item.Size());
+        auto session = framePool.CreateCaptureSession(item);
+
+        // Signal the event when our frame comes in
+        Direct3D11CaptureFrame capturedFrame{ nullptr };
+        wil::shared_event captureEvent(wil::EventOptions::None);
+        framePool.FrameArrived([captureEvent, &capturedFrame](auto& framePool, auto&)
+            {
+                capturedFrame = framePool.TryGetNextFrame();
+                captureEvent.SetEvent();
+            });
+
+        // Turn off the monitor
+        // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-syscommand
+        SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, (LPARAM) 2 /* power off */);
+        co_await std::chrono::seconds(1);
+
+        // Start the capture and commit our dcomp device
+        session.StartCapture();
+        compositorController.Commit();
+
+        // Wait with a timeout (in milliseconds)
+        success = captureEvent.wait(3000);
+
+        // Turn on the monitor
+        SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, (LPARAM) -1 /* power on */);
+
+        // Stop the capture
+        session.Close();
+        framePool.Close();
+    }
+    catch (hresult_error const& error)
+    {
+        wprintf(L"Monitor off test failed! 0x%08x - %s \n", error.code().value, error.message().c_str());
+        success = false;
+    }
+
+    co_return success;
+}
+
 std::wstring GetBuildString()
 {
     wil::unique_hkey registryKey;
@@ -942,7 +1003,10 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::DisplayAffinity const& args) -> bool { return DisplayAffinityTest(compositorController, device, compositorThread, args.Mode).get();  },
         [=](testparams::WindowStyle const& args) -> bool { return WindowStyleTest(compositorController, device, compositorThread, args.TransitionMode).get(); },
         [=](testparams::WindowMargins const& args) -> bool { return WindowMarginsTest(compositorController, device, compositorThread, args.TestMode).get(); },
+        [=](testparams::MonitorOff const&) -> bool { return MonitorOffTest(compositorController, device, compositorThread).get(); },
     }, params);
+
+    wprintf(L"Test result: %s\n", success ? L"PASSED" : L"FAILED");
 }
 
 int wmain(int argc, wchar_t* argv[])
@@ -1009,6 +1073,7 @@ int wmain(int argc, wchar_t* argv[])
                 .Alias(L"-ah"))
             .Argument(util::Argument(L"--automated")
                 .Alias(L"-auto")))
+        .Command(util::Command(L"monitor-off", testparams::TestParams(testparams::MonitorOff())))
         .Command(util::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
 
     testparams::TestParams params;

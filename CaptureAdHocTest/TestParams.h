@@ -62,6 +62,7 @@ namespace testparams
     {
         MarginsTestMode TestMode = MarginsTestMode::AdHoc;
     };
+    struct MonitorOff {};
     struct PCInfo {};
 
     typedef std::variant<
@@ -74,6 +75,7 @@ namespace testparams
         DisplayAffinity,
         WindowStyle,
         WindowMargins,
+        MonitorOff,
         PCInfo
     > TestParams;
 };
