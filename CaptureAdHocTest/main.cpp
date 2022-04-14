@@ -968,6 +968,71 @@ std::wstring GetBuildString()
     return buildString;
 }
 
+std::vector<DISPLAYCONFIG_PATH_INFO> GetDisplayConfigPathInfos()
+{
+    uint32_t numPaths = 0;
+    uint32_t numModes = 0;
+    winrt::check_win32(GetDisplayConfigBufferSizes(
+        QDC_ONLY_ACTIVE_PATHS,
+        &numPaths,
+        &numModes));
+    std::vector<DISPLAYCONFIG_PATH_INFO> pathInfos(numPaths, DISPLAYCONFIG_PATH_INFO{});
+    std::vector<DISPLAYCONFIG_MODE_INFO> modeInfos(numModes, DISPLAYCONFIG_MODE_INFO{});
+    winrt::check_win32(QueryDisplayConfig(
+        QDC_ONLY_ACTIVE_PATHS,
+        &numPaths,
+        pathInfos.data(),
+        &numModes,
+        modeInfos.data(),
+        nullptr));
+    pathInfos.resize(numPaths);
+    return pathInfos;
+}
+
+std::map<std::wstring, std::wstring> BuildDeviceNameToDisplayNameMap()
+{
+    auto pathInfos = GetDisplayConfigPathInfos();
+    std::map<std::wstring, std::wstring> result;
+    for (auto&& pathInfo : pathInfos)
+    {
+        // Get the device name.
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceDeviceName = {};
+        sourceDeviceName.header.size = sizeof(sourceDeviceName);
+        sourceDeviceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        sourceDeviceName.header.adapterId = pathInfo.sourceInfo.adapterId;
+        sourceDeviceName.header.id = pathInfo.sourceInfo.id;
+        winrt::check_win32(DisplayConfigGetDeviceInfo(&sourceDeviceName.header));
+        std::wstring deviceName(sourceDeviceName.viewGdiDeviceName);
+
+        // Get the display name.
+        DISPLAYCONFIG_TARGET_DEVICE_NAME targetDeviceName = {};
+        targetDeviceName.header.size = sizeof(targetDeviceName);
+        targetDeviceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+        targetDeviceName.header.adapterId = pathInfo.targetInfo.adapterId;
+        targetDeviceName.header.id = pathInfo.targetInfo.id;
+        winrt::check_win32(DisplayConfigGetDeviceInfo(&targetDeviceName.header));
+        std::wstring displayName(targetDeviceName.monitorFriendlyDeviceName);
+
+        result.insert({ deviceName, displayName });
+    }
+    return result;
+}
+
+bool PrintMonitorInfo()
+{
+    auto names = BuildDeviceNameToDisplayNameMap();
+    int i = 0;
+    for (auto&& [deviceName, displayName] : names)
+    {
+        DEVMODEW devMode = {};
+        winrt::check_bool(EnumDisplaySettingsW(deviceName.c_str(), ENUM_CURRENT_SETTINGS, &devMode));
+
+        wprintf(L"%i - %s - %i Hz\n", i, displayName.c_str(), devMode.dmDisplayFrequency);
+        i++;
+    }
+    return true;
+}
+
 IAsyncAction MainAsync(testparams::TestParams params)
 {
     // The compositor needs a DispatcherQueue. Since we aren't going to pump messages,
@@ -1004,6 +1069,7 @@ IAsyncAction MainAsync(testparams::TestParams params)
         [=](testparams::WindowStyle const& args) -> bool { return WindowStyleTest(compositorController, device, compositorThread, args.TransitionMode).get(); },
         [=](testparams::WindowMargins const& args) -> bool { return WindowMarginsTest(compositorController, device, compositorThread, args.TestMode).get(); },
         [=](testparams::MonitorOff const&) -> bool { return MonitorOffTest(compositorController, device, compositorThread).get(); },
+        [=](testparams::MonitorInfo const&) -> bool { return PrintMonitorInfo(); }
     }, params);
 
     wprintf(L"Test result: %s\n", success ? L"PASSED" : L"FAILED");
@@ -1074,7 +1140,8 @@ int wmain(int argc, wchar_t* argv[])
             .Argument(util::Argument(L"--automated")
                 .Alias(L"-auto")))
         .Command(util::Command(L"monitor-off", testparams::TestParams(testparams::MonitorOff())))
-        .Command(util::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())));
+        .Command(util::Command(L"pc-info", testparams::TestParams(testparams::PCInfo())))
+        .Command(util::Command(L"monitor-info", testparams::TestParams(testparams::MonitorInfo())));
 
     testparams::TestParams params;
     try

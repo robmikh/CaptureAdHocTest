@@ -64,6 +64,7 @@ namespace testparams
     };
     struct MonitorOff {};
     struct PCInfo {};
+    struct MonitorInfo {};
 
     typedef std::variant<
         Alpha,
@@ -76,6 +77,7 @@ namespace testparams
         WindowStyle,
         WindowMargins,
         MonitorOff,
-        PCInfo
+        PCInfo,
+        MonitorInfo
     > TestParams;
 };
