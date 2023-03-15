@@ -318,6 +318,8 @@ IAsyncOperation<bool> WindowRenderRateTest(
     std::chrono::seconds delay,
     std::chrono::seconds duration)
 {
+    auto windowNameStr = windowName;
+
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
     com_ptr<ID3D11DeviceContext> d3dContext;
@@ -328,7 +330,7 @@ IAsyncOperation<bool> WindowRenderRateTest(
     try
     {
         // Find the window
-        auto window = FindWindowW(nullptr, windowName.c_str());
+        auto window = FindWindowW(nullptr, windowNameStr.c_str());
         winrt::check_bool(window);
 
         // Start capturing the window. Make note of the timestamps.
