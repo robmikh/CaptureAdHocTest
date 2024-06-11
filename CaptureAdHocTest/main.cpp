@@ -59,7 +59,7 @@ std::future<std::shared_ptr<T>> CreateSharedOnThreadAsync(DispatcherQueue const&
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 
-IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDirect3DSurface const& surface, std::wstring const& fileName)
+IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice device, IDirect3DSurface surface, std::wstring fileName)
 {
     // Get a file to save the screenshot
     auto currentPath = std::filesystem::current_path();
@@ -106,7 +106,7 @@ IAsyncOperation<StorageFile> SaveFrameAsync(IDirect3DDevice const& device, IDire
     co_return file;
 }
 
-IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorController, IDirect3DDevice const& device)
+IAsyncOperation<bool> TransparencyTest(CompositorController compositorController, IDirect3DDevice device)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -161,7 +161,7 @@ IAsyncOperation<bool> TransparencyTest(CompositorController const& compositorCon
     co_return success;
 }
 
-IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::FullscreenMode mode)
+IAsyncOperation<bool> RenderRateTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue, testparams::FullscreenMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -229,7 +229,7 @@ IAsyncOperation<bool> RenderRateTest(CompositorController const& compositorContr
     co_return true;
 }
 
-IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::FullscreenTransitionTestMode mode)
+IAsyncOperation<bool> FullscreenTransitionTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue, testparams::FullscreenTransitionTestMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -312,9 +312,9 @@ IAsyncOperation<bool> FullscreenTransitionTest(CompositorController const& compo
 }
 
 IAsyncOperation<bool> WindowRenderRateTest(
-    CompositorController const& compositorController, 
-    IDirect3DDevice const& device, 
-    std::wstring const& windowName,
+    CompositorController compositorController, 
+    IDirect3DDevice device, 
+    std::wstring windowName,
     std::chrono::seconds delay,
     std::chrono::seconds duration)
 {
@@ -407,7 +407,7 @@ std::wstring RemoteCaptureTypeToString(RemoteCaptureType captureType)
     }
 }
 
-std::future<std::pair<IDirect3DSurface, Color>> TestCenterOfWindowAsync(IDirect3DDevice const& device, HWND window, bool cursorEnabled, RemoteCaptureType captureType)
+std::future<std::pair<IDirect3DSurface, Color>> TestCenterOfWindowAsync(IDirect3DDevice device, HWND window, bool cursorEnabled, RemoteCaptureType captureType)
 {
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
     com_ptr<ID3D11DeviceContext> d3dContext;
@@ -452,7 +452,7 @@ std::future<std::pair<IDirect3DSurface, Color>> TestCenterOfWindowAsync(IDirect3
     co_return std::pair<IDirect3DSurface, Color>(frame, mapped.ReadBGRAPixel(mouseX, mouseY).to_color());
 }
 
-IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDirect3DDevice const& device, HWND window, Color windowColor, Color cursorColor)
+IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDirect3DDevice device, HWND window, Color windowColor, Color cursorColor)
 {
     auto cursorEnabled = true;
     IDirect3DSurface frame{ nullptr };
@@ -494,9 +494,9 @@ IAsyncOperation<bool> TestCenterOfWindowAsync(RemoteCaptureType captureType, IDi
 }
 
 IAsyncOperation<bool> CursorDisableTest(
-    CompositorController const& compositorController, 
-    IDirect3DDevice const& device, 
-    DispatcherQueue const& compositorThreadQueue,
+    CompositorController compositorController, 
+    IDirect3DDevice device, 
+    DispatcherQueue compositorThreadQueue,
     bool monitor,
     bool window)
 {
@@ -566,7 +566,7 @@ IAsyncOperation<bool> CursorDisableTest(
     }
 }
 
-IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, com_ptr<ID2D1Device> const& d2dDevice)
+IAsyncOperation<bool> HDRContentTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue, com_ptr<ID2D1Device> d2dDevice)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -616,7 +616,7 @@ IAsyncOperation<bool> HDRContentTest(CompositorController const& compositorContr
     co_return true;
 }
 
-IAsyncOperation<bool> DisplayAffinityTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::DisplayAffinityMode const& mode)
+IAsyncOperation<bool> DisplayAffinityTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue, testparams::DisplayAffinityMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -703,7 +703,7 @@ RECT GetClientAreaRectInCaptureSurfaceSpace(HWND window)
     };
 }
 
-IAsyncOperation<GraphicsCaptureItem> CreateItemForWindowOnThreadAsync(DispatcherQueue const& threadQueue, HWND const& window)
+IAsyncOperation<GraphicsCaptureItem> CreateItemForWindowOnThreadAsync(DispatcherQueue threadQueue, HWND window)
 {
     wil::shared_event initialized(wil::EventOptions::None);
     GraphicsCaptureItem item{ nullptr };
@@ -716,7 +716,7 @@ IAsyncOperation<GraphicsCaptureItem> CreateItemForWindowOnThreadAsync(Dispatcher
     co_return item;
 }
 
-IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::WindowStyleTestMode mode)
+IAsyncOperation<bool> WindowStyleTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue, testparams::WindowStyleTestMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
@@ -852,7 +852,7 @@ IAsyncOperation<bool> WindowStyleTest(CompositorController const& compositorCont
     co_return success;
 }
 
-IAsyncOperation<bool> WindowMarginsTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue, testparams::MarginsTestMode mode)
+IAsyncOperation<bool> WindowMarginsTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue, testparams::MarginsTestMode mode)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);
