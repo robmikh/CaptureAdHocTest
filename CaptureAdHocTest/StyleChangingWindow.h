@@ -25,7 +25,7 @@ struct StyleChangingWindow : robmikh::common::desktop::DesktopWindow<StyleChangi
 
 private:
     void CloseWindow() { m_windowClosed.SetEvent(); }
-    void CreateControls();
+    void CreateControls(HINSTANCE instance);
     void OnStyleChangeButtonPressed();
     void OnStyleChange();
 

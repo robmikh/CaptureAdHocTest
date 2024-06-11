@@ -402,6 +402,8 @@ std::wstring RemoteCaptureTypeToString(RemoteCaptureType captureType)
         return L"Monitor";
     case RemoteCaptureType::Window:
         return L"Window";
+    default:
+        throw winrt::hresult_invalid_argument{};
     }
 }
 
@@ -523,7 +525,7 @@ IAsyncOperation<bool> CursorDisableTest(
 
         // Create a square cursor that inverts content
         std::array<BYTE, 128> andMask;
-        std::fill_n(andMask.data(), andMask.size(), 0xFF);
+        std::fill_n(andMask.data(), andMask.size(), static_cast<BYTE>(0xFF));
         std::array<BYTE, 128> orMask = andMask;
         wil::shared_hcursor newCursor(CreateCursor(GetModuleHandleW(nullptr), 16, 16, 32, 32, andMask.data(), orMask.data()));
 
@@ -859,7 +861,6 @@ IAsyncOperation<bool> WindowMarginsTest(CompositorController const& compositorCo
 
     bool success = true;
     Direct3D11CaptureFrame currentFrame{ nullptr };
-    bool prematureWindowClose = false;
     try
     {
         // Create the window on the compositor thread to borrow the message pump
@@ -895,7 +896,7 @@ IAsyncOperation<bool> WindowMarginsTest(CompositorController const& compositorCo
     co_return success;
 }
 
-IAsyncOperation<bool> MonitorOffTest(CompositorController const& compositorController, IDirect3DDevice const& device, DispatcherQueue const& compositorThreadQueue)
+IAsyncOperation<bool> MonitorOffTest(CompositorController compositorController, IDirect3DDevice device, DispatcherQueue compositorThreadQueue)
 {
     auto compositor = compositorController.Compositor();
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(device);

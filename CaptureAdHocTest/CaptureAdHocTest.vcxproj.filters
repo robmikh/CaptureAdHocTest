@@ -26,7 +26,6 @@
     <ClInclude Include="AdHocTestCliParser.h" />
     <ClInclude Include="TestParams.h" />
     <ClInclude Include="StyleChangingWindow.h" />
-    <ClInclude Include="ControlsHelper.h" />
     <ClInclude Include="MarginsWindow.h" />
   </ItemGroup>
 </Project>

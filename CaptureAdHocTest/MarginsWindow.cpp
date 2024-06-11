@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "MarginsWindow.h"
-#include "ControlsHelper.h"
+#include <robmikh.common/ControlsHelper.h>
 #include "testutils.h"
 
 namespace winrt
@@ -18,6 +18,7 @@ namespace winrt
 namespace util
 {
     using namespace robmikh::common::desktop;
+    using namespace robmikh::common::desktop::controls;
     using namespace robmikh::common::uwp;
 }
 
@@ -57,7 +58,7 @@ MarginsWindow::MarginsWindow(std::wstring const& title, winrt::Color const& back
 
     if (showControls)
     {
-        CreateControls();
+        CreateControls(instance);
     }
 }
 
@@ -115,12 +116,12 @@ LRESULT MarginsWindow::MessageHandler(UINT const message, WPARAM const wparam, L
     return 0;
 }
 
-void MarginsWindow::CreateControls()
+void MarginsWindow::CreateControls(HINSTANCE instance)
 {
-    auto controls = StackPanel(m_window, 10, 10, 200);
+    auto controls = util::StackPanel(m_window, instance, 10, 10, 40, 200, 30);
 
-    m_toggleFullscreenButton = controls.CreateControl(ControlType::Button, L"Toggle fullscreen");
-    m_takeSnapshotButton = controls.CreateControl(ControlType::Button, L"Take snapshot");
+    m_toggleFullscreenButton = controls.CreateControl(util::ControlType::Button, L"Toggle fullscreen");
+    m_takeSnapshotButton = controls.CreateControl(util::ControlType::Button, L"Take snapshot");
 }
 
 void MarginsWindow::Fullscreen(bool isFullscreen)
@@ -247,26 +248,9 @@ winrt::fire_and_forget MarginsWindow::TakeSnapshot()
 
     D3D11_TEXTURE2D_DESC desc = {};
     result->GetDesc(&desc);
-    WINRT_ASSERT(desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM);
-    auto bytesPerPixel = 4;
-
-    // Get the bits
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    winrt::check_hresult(d3dContext->Map(result.get(), 0, D3D11_MAP_READ, 0, &mapped));
-
-    std::vector<byte> bits(desc.Width * desc.Height * bytesPerPixel, 0);
-    auto source = reinterpret_cast<byte*>(mapped.pData);
-    auto dest = bits.data();
-    for (auto i = 0; i < (int)desc.Height; i++)
-    {
-        memcpy(dest, source, desc.Width * bytesPerPixel);
-
-        source += mapped.RowPitch;
-        dest += desc.Width * bytesPerPixel;
-    }
-
-    d3dContext->Unmap(result.get(), 0);
+    
+    auto bytes = util::CopyBytesFromTexture(result);
 
     // Save
-    co_await SaveBitmapAsync(bits, desc.Width, desc.Height);
+    co_await SaveBitmapAsync(bytes, desc.Width, desc.Height);
 }

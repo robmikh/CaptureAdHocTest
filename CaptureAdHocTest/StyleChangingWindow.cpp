@@ -1,11 +1,16 @@
 #include "pch.h"
 #include "StyleChangingWindow.h"
-#include "ControlsHelper.h"
+#include <robmikh.common/ControlsHelper.h>
 #include "testutils.h"
 
 namespace winrt
 {
     using namespace Windows::UI;
+}
+
+namespace util
+{
+    using namespace robmikh::common::desktop::controls;
 }
 
 const std::wstring StyleChangingWindow::ClassName = L"CaptureAdHocTest.StyleChangingWindow";
@@ -41,7 +46,7 @@ StyleChangingWindow::StyleChangingWindow(std::wstring const& title, winrt::Color
 
     if (showControls)
     {
-        CreateControls();
+        CreateControls(instance);
     }
 }
 
@@ -95,11 +100,11 @@ LRESULT StyleChangingWindow::MessageHandler(UINT const message, WPARAM const wpa
     return 0;
 }
 
-void StyleChangingWindow::CreateControls()
+void StyleChangingWindow::CreateControls(HINSTANCE instance)
 {
-    auto controls = StackPanel(m_window, 10, 10, 200);
+    auto controls = util::StackPanel(m_window, instance, 10, 10, 40, 200, 30);
 
-    m_changeStyleButton = controls.CreateControl(ControlType::Button, L"Change Style");
+    m_changeStyleButton = controls.CreateControl(util::ControlType::Button, L"Change Style");
 }
 
 WindowStyle CycleStyle(WindowStyle style)
@@ -110,6 +115,8 @@ WindowStyle CycleStyle(WindowStyle style)
         return WindowStyle::Popup;
     case WindowStyle::Popup:
         return WindowStyle::Overlapped;
+    default:
+        throw winrt::hresult_invalid_argument{};
     }
 }
 
@@ -121,6 +128,8 @@ LONG GetStyleFromWindowdStyle(WindowStyle style)
         return WS_OVERLAPPEDWINDOW;
     case WindowStyle::Popup:
         return WS_POPUP;
+    default:
+        throw winrt::hresult_invalid_argument{};
     }
 }
 

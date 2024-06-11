@@ -18,7 +18,7 @@ struct MarginsWindow : robmikh::common::desktop::DesktopWindow<MarginsWindow>
 
 private:
     void CloseWindow() { m_windowClosed.SetEvent(); }
-    void CreateControls();
+    void CreateControls(HINSTANCE instance);
     winrt::fire_and_forget TakeSnapshot();
 
 private:
