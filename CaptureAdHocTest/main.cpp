@@ -178,7 +178,7 @@ IAsyncOperation<bool> RenderRateTest(CompositorController compositorController, 
         auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
-            2,
+            3,
             item.Size());
         auto session = framePool.CreateCaptureSession(item);
         FrameTimer<TimeSpan> captureTimer;
@@ -190,6 +190,14 @@ IAsyncOperation<bool> RenderRateTest(CompositorController compositorController, 
             captureTimer.RecordTimestamp(timestamp);
         });
         session.StartCapture();
+        if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::Windows::Graphics::Capture::GraphicsCaptureSession>(), L"MinUpdateInterval"))
+        {
+            session.MinUpdateInterval(std::chrono::milliseconds(1));
+        }
+        if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::Windows::Graphics::Capture::GraphicsCaptureSession>(), L"IsBorderRequired"))
+        {
+            session.IsBorderRequired(false);
+        }
 
         // Run the window
         auto completed = false;
@@ -338,16 +346,26 @@ IAsyncOperation<bool> WindowRenderRateTest(
         auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
-            2,
+            3,
             item.Size());
         auto session = framePool.CreateCaptureSession(item);
+        if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::Windows::Graphics::Capture::GraphicsCaptureSession>(), L"MinUpdateInterval"))
+        {
+            session.MinUpdateInterval(std::chrono::milliseconds(1));
+        }
+        if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::Windows::Graphics::Capture::GraphicsCaptureSession>(), L"IsBorderRequired"))
+        {
+            session.IsBorderRequired(false);
+        }
         FrameTimer<TimeSpan> captureTimer;
-        framePool.FrameArrived([&captureTimer](auto& framePool, auto&)
+        FrameTimer<std::chrono::time_point<std::chrono::steady_clock>> captureArrivedTimer;
+        framePool.FrameArrived([&captureTimer, &captureArrivedTimer](auto& framePool, auto&)
         {
             auto frame = framePool.TryGetNextFrame();
             auto timestamp = frame.SystemRelativeTime();
 
             captureTimer.RecordTimestamp(timestamp);
+            captureArrivedTimer.RecordTimestamp(std::chrono::high_resolution_clock::now());
         });
         session.StartCapture();
 
@@ -357,7 +375,17 @@ IAsyncOperation<bool> WindowRenderRateTest(
         session.Close();
         framePool.Close();
 
-        wprintf(L"Average capture frame time: %fms\n", captureTimer.ComputeAverageFrameTime().count());
+        auto captureTimerAvgTime = captureTimer.ComputeAverageFrameTime();
+        auto captureArrivedTimerAvgTime = captureArrivedTimer.ComputeAverageFrameTime();
+
+        auto captureAvgTimeAsSecs = std::chrono::duration_cast<std::chrono::duration<double>>(captureTimerAvgTime);
+        auto captureArrivedAvgTimeAsSecs = std::chrono::duration_cast<std::chrono::duration<double>>(captureArrivedTimerAvgTime);
+
+        auto captureAvgFrameRate = 1.0 / captureAvgTimeAsSecs.count();
+        auto captureArrivedAvgFrameRate = 1.0 / captureArrivedAvgTimeAsSecs.count();
+
+        wprintf(L"Average capture frame time: %fms  (%f fps)\n", captureTimer.ComputeAverageFrameTime().count(), captureAvgFrameRate);
+        wprintf(L"Average capture arrival time: %fms  (%f fps)\n", captureArrivedTimer.ComputeAverageFrameTime().count(), captureArrivedAvgFrameRate);
         wprintf(L"Number of capture frames: %d\n", captureTimer.m_totalFrames);
     }
     catch (hresult_error const& error)
